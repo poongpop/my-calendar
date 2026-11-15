@@ -51,22 +51,30 @@ main{display:flex;gap:0;min-height:calc(100% - 46px)}
 .ngroup h4{margin:4px 2px 8px;font-size:13px;color:var(--muted);font-weight:700}
 .hint{font-size:12px;color:var(--muted);text-align:center;padding:10px 0 4px}
 .cal{flex:1;padding:8px 10px 10px;min-width:0}
-.weekdays,.grid{display:grid;grid-template-columns:repeat(7,1fr)}
+.weekdays{display:grid;grid-template-columns:repeat(7,1fr)}
 .weekdays div{text-align:center;font-size:12px;color:var(--muted);padding:6px 0}
 .weekdays div:first-child{color:var(--sun)}.weekdays div:last-child{color:var(--sat)}
 .grid{border-top:1px solid var(--line);border-left:1px solid var(--line)}
-.cell{border-right:1px solid var(--line);border-bottom:1px solid var(--line);min-height:96px;
-  padding:4px;text-align:left;display:flex;flex-direction:column;gap:2px;overflow:hidden;border-radius:0}
+.week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));--lh:17px;
+  grid-template-rows:30px repeat(3,var(--lh)) minmax(16px,1fr);row-gap:2px;min-height:96px}
+.cell{grid-row:1/-1;border-right:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:4px;text-align:left;display:flex;flex-direction:column;justify-content:flex-start;align-items:flex-start;
+  overflow:hidden;border-radius:0;min-width:0}
 .cell:hover{background:var(--soft)}
 .cell .num{font-size:13px;width:24px;height:24px;display:grid;place-items:center;border-radius:50%}
 .cell.sun .num{color:var(--sun)}.cell.sat .num{color:var(--sat)}
 .cell.other{opacity:.38}
 .cell.today .num{background:var(--accent);color:#fff}
 .cell.sel{background:var(--accent-soft)}
-.chips{display:flex;flex-direction:column;gap:2px;min-width:0}
-.chip{font-size:11px;line-height:16px;padding:0 5px;border-radius:4px;color:#fff;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.more{font-size:11px;color:var(--muted);padding-left:4px}
+.ebar{z-index:1;pointer-events:none;height:var(--lh);line-height:var(--lh);font-size:11px;color:#fff;
+  padding:0 6px;margin:0 3px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ebar.cont-l{margin-left:0;border-top-left-radius:0;border-bottom-left-radius:0}
+.ebar.cont-r{margin-right:0;border-top-right-radius:0;border-bottom-right-radius:0}
+.more{grid-row:5;z-index:1;pointer-events:none;font-size:11px;color:var(--muted);padding-left:6px;align-self:start}
+.inwrap{display:flex;gap:4px;align-items:center}
+.inwrap input{flex:1;min-width:0}
+.clr{flex:none;width:30px;height:38px;border-radius:8px;background:var(--soft);color:var(--muted);font-size:16px;line-height:1}
+.clr:hover{color:var(--fg)}
 aside{width:340px;border-left:1px solid var(--line);padding:14px 16px;background:var(--bg)}
 .dayhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 .dayhead h2{font-size:16px;margin:0}
@@ -105,9 +113,11 @@ body.notes-mode .cal-only{display:none}
   header{gap:2px;padding-left:8px;padding-right:8px}
   .status{max-width:28vw}
   aside{width:auto;border-left:0;border-top:1px solid var(--line);padding-bottom:calc(90px + env(safe-area-inset-bottom))}
-  .cell{min-height:58px;padding:3px 2px;align-items:center}
-  .chips{flex-direction:row;flex-wrap:wrap;justify-content:center;gap:2px}
-  .chip{font-size:0;width:6px;height:6px;padding:0;border-radius:50%}
+  .week{min-height:60px;--lh:5px;grid-template-rows:30px repeat(3,var(--lh)) minmax(4px,1fr)}
+  .cell{padding:3px 2px}
+  .cell{align-items:center}
+  .ebar{font-size:0;padding:0;margin:0 4px;border-radius:3px}
+  .ebar.cont-l{margin-left:0}.ebar.cont-r{margin-right:0}
   .more{display:none}
   header h1{font-size:17px;min-width:96px}
   .hide-m{display:none}
@@ -184,13 +194,13 @@ textarea{min-height:70px;resize:vertical}
     <label>제목<input name="title" required maxlength="200" autocomplete="off"></label>
     <label>폴더<select name="folder"></select></label>
     <div class="row">
-      <label>시작일<input type="date" name="date" required></label>
-      <label>종료일<input type="date" name="endDate"></label>
+      <label>시작일<span class="inwrap"><input type="date" name="date" required><button type="button" class="clr" data-clr="date" title="처음 날짜로 되돌리기" aria-label="시작일 초기화">×</button></span></label>
+      <label>종료일<span class="inwrap"><input type="date" name="endDate"><button type="button" class="clr" data-clr="endDate" title="지우기" aria-label="종료일 초기화">×</button></span></label>
     </div>
     <label class="check"><input type="checkbox" name="allDay"> 종일</label>
     <div class="row" id="timeRow">
-      <label>시작 시각<input type="time" name="start"></label>
-      <label>종료 시각<input type="time" name="end"></label>
+      <label>시작 시각<span class="inwrap"><input type="time" name="start"><button type="button" class="clr" data-clr="start" title="지우기" aria-label="시작 시각 초기화">×</button></span></label>
+      <label>종료 시각<span class="inwrap"><input type="time" name="end"><button type="button" class="clr" data-clr="end" title="지우기" aria-label="종료 시각 초기화">×</button></span></label>
     </div>
     <div class="colors" id="colors"></div>
     <label>메모<textarea name="memo" maxlength="5000"></textarea></label>
@@ -498,20 +508,22 @@ function render(){
   const start = new Date(first); start.setDate(1 - first.getDay());
   const today = ymd(new Date());
   const weeks = Math.ceil((first.getDay() + new Date(view.getFullYear(), view.getMonth() + 1, 0).getDate()) / 7);
-  for (let i = 0; i < weeks * 7; i++) {
+  const MAXL = 3; // 칸마다 보이는 최대 줄 수
+  const evs = live().filter(e => e.date && passes(e, 'cal'));
+  for (let w = 0; w < weeks; w++) {
+   const week = el('div', 'week'), keys = [];
+   for (let c = 0; c < 7; c++) {
+    const i = w * 7 + c;
     const d = new Date(start); d.setDate(start.getDate() + i);
-    const key = ymd(d);
+    const key = ymd(d); keys.push(key);
     const cell = el('button', 'cell');
+    cell.style.gridColumn = String(c + 1);
     if (d.getMonth() !== view.getMonth()) cell.classList.add('other');
     if (d.getDay() === 0) cell.classList.add('sun');
     if (d.getDay() === 6) cell.classList.add('sat');
     if (key === today) cell.classList.add('today');
     if (key === selected) cell.classList.add('sel');
     cell.append(el('span', 'num', d.getDate()));
-    const list = eventsOn(key), chips = el('div', 'chips');
-    list.slice(0, 3).forEach(e => { const c = el('span', 'chip', e.title); c.style.background = e.color || COLORS[0]; chips.append(c); });
-    cell.append(chips);
-    if (list.length > 3) cell.append(el('span', 'more', `+${list.length - 3}`));
     cell.onclick = () => {
       // 같은 날짜를 빠르게 두 번 눌렀을 때만 새 일정 (다른 날짜 두 개를 연달아 누르면 선택만)
       const now = Date.now();
@@ -522,7 +534,32 @@ function render(){
       render();
       if (dbl) openEvent(null, key);
     };
-    grid.append(cell);
+    week.append(cell);
+   }
+   // 이번 주에 걸친 일정 → 막대(여러 날이면 이어진 막대)로 배치
+   const ws = keys[0], we = keys[6];
+   const segs = [];
+   for (const e of evs) {
+     const s0 = e.date, e0 = e.endDate && e.endDate >= e.date ? e.endDate : e.date;
+     if (e0 < ws || s0 > we) continue;
+     segs.push({ e, a: s0 < ws ? 0 : keys.indexOf(s0), b: e0 > we ? 6 : keys.indexOf(e0), contL: s0 < ws, contR: e0 > we });
+   }
+   segs.sort((x, y) => x.a - y.a || (y.b - y.a) - (x.b - x.a) || (!!y.e.allDay - !!x.e.allDay)
+     || (x.e.start || '').localeCompare(y.e.start || '') || x.e.title.localeCompare(y.e.title));
+   const laneEnd = [], hidden = [0, 0, 0, 0, 0, 0, 0];
+   for (const sg of segs) {
+     let L = laneEnd.findIndex(end => end < sg.a);
+     if (L < 0) L = laneEnd.length;
+     if (L >= MAXL) { for (let i = sg.a; i <= sg.b; i++) hidden[i]++; continue; }
+     laneEnd[L] = sg.b;
+     const bar = el('div', 'ebar' + (sg.contL ? ' cont-l' : '') + (sg.contR ? ' cont-r' : ''), sg.e.title);
+     bar.style.gridColumn = `${sg.a + 1} / ${sg.b + 2}`;
+     bar.style.gridRow = String(L + 2);
+     bar.style.background = sg.e.color || COLORS[0];
+     week.append(bar);
+   }
+   hidden.forEach((n, i) => { if (n) { const m = el('div', 'more', `+${n}`); m.style.gridColumn = String(i + 1); week.append(m); } });
+   grid.append(week);
   }
   renderDay();
 }
@@ -560,12 +597,20 @@ let editing = null;
 })();
 function syncTimeRow(){ $('#timeRow').style.display = form.allDay.checked ? 'none' : ''; }
 form.allDay.onchange = syncTimeRow;
+let baseDate = '';
+// × 버튼: 시작일은 창을 열 때의 날짜로, 나머지는 빈 값으로 초기화
+document.querySelectorAll('#eventForm .clr').forEach(b => b.onclick = e => {
+  e.preventDefault();
+  const name = b.dataset.clr;
+  form[name].value = name === 'date' ? baseDate : '';
+});
 function openEvent(ev, date){
   editing = ev;
   $('#eventDlgTitle').textContent = ev ? '일정 수정' : '새 일정';
   $('#delBtn').style.display = ev ? '' : 'none';
   form.title.value = ev ? ev.title : '';
   form.date.value = ev ? ev.date : (date || selected);
+  baseDate = form.date.value;
   form.endDate.value = ev && ev.endDate ? ev.endDate : '';
   form.allDay.checked = ev ? !!ev.allDay : false;
   form.start.value = ev ? (ev.start || '') : '';
