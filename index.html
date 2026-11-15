@@ -19,11 +19,12 @@
     --accent:#8b85ff;--accent-soft:#25264a;--sun:#ff6b6f;--sat:#6f9bff;}
 }
 *{box-sizing:border-box}
-html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);
+html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none;background:var(--bg);color:var(--fg);
   font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard","Noto Sans KR","Malgun Gothic",sans-serif;
   -webkit-tap-highlight-color:transparent}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
-header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:6px;
+body{display:flex;flex-direction:column;height:100dvh}
+header{position:relative;flex:none;z-index:5;display:flex;align-items:center;gap:6px;
   padding:calc(10px + env(safe-area-inset-top)) 14px 10px;background:var(--bg);border-bottom:1px solid var(--line)}
 header h1{font-size:19px;margin:0 6px;min-width:120px;text-align:center;font-weight:700}
 .icon-btn{width:36px;height:36px;border-radius:10px;font-size:20px;display:grid;place-items:center}
@@ -32,7 +33,23 @@ header h1{font-size:19px;margin:0 6px;min-width:120px;text-align:center;font-wei
 .spacer{flex:1;min-width:0}
 .status{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40vw}
 .status.err{color:var(--danger)}
-main{display:flex;gap:0;min-height:calc(100% - 60px)}
+#pager{flex:1;overflow:hidden;position:relative;min-height:0}
+#track{display:flex;width:200%;height:100%;transition:transform .28s cubic-bezier(.2,.8,.2,1);will-change:transform}
+#track.dragging,#track.instant{transition:none}
+.page{width:50%;height:100%;overflow-y:auto;overflow-x:hidden;touch-action:pan-y;overscroll-behavior:contain}
+main{display:flex;gap:0;min-height:calc(100% - 46px)}
+.tabs{display:flex;background:var(--soft);border-radius:10px;padding:3px;flex:none}
+.tabs button{padding:5px 12px;border-radius:8px;font-size:13px;font-weight:600;color:var(--muted)}
+.tabs button.on{background:var(--bg);color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.fbar{display:flex;gap:6px;overflow-x:auto;padding:8px 12px 2px;scrollbar-width:none}
+.fbar::-webkit-scrollbar{display:none}
+.fchip{white-space:nowrap;padding:5px 12px;border-radius:999px;border:1px solid var(--line);font-size:13px;flex:none}
+.fchip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.fchip.fadd{color:var(--muted);border-style:dashed}
+.ftag{display:inline-block;font-size:11px;color:var(--accent);background:var(--accent-soft);border-radius:6px;padding:0 6px;margin-left:6px;vertical-align:1px;font-weight:600}
+.ngroup{margin-bottom:18px}
+.ngroup h4{margin:4px 2px 8px;font-size:13px;color:var(--muted);font-weight:700}
+.hint{font-size:12px;color:var(--muted);text-align:center;padding:10px 0 4px}
 .cal{flex:1;padding:8px 10px 10px;min-width:0}
 .weekdays,.grid{display:grid;grid-template-columns:repeat(7,1fr)}
 .weekdays div{text-align:center;font-size:12px;color:var(--muted);padding:6px 0}
@@ -62,8 +79,8 @@ ul.list .ti{font-weight:600;margin:1px 0}
 ul.list .memo{font-size:13px;color:var(--muted);white-space:pre-wrap;word-break:break-word}
 .empty{color:var(--muted);font-size:14px;padding:20px 0;text-align:center}
 .fab{display:none}
-body.notes-mode main,body:not(.notes-mode) #notesView,body.notes-mode .cal-only{display:none}
-.notes{padding:14px 16px calc(90px + env(safe-area-inset-bottom));max-width:1100px;margin:0 auto}
+body.notes-mode .cal-only{display:none}
+.notes{padding:10px 16px calc(90px + env(safe-area-inset-bottom));max-width:1100px;margin:0 auto}
 .notes-bar{display:flex;gap:8px;margin-bottom:12px;align-items:center}
 .notes-bar input{flex:1}
 .ngrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
@@ -80,6 +97,11 @@ body.notes-mode main,body:not(.notes-mode) #notesView,body.notes-mode .cal-only{
 @media (max-width:760px){
   main{flex-direction:column;min-height:0}
   .cal{flex:none}
+  .grid{touch-action:none}
+  .tabs button{padding:5px 9px}
+  .status{display:none}
+  .status.err{display:block;position:absolute;top:100%;left:0;right:0;max-width:none;background:var(--danger);color:#fff;
+    text-align:center;font-size:12px;padding:4px 8px}
   header{gap:2px;padding-left:8px;padding-right:8px}
   .status{max-width:28vw}
   aside{width:auto;border-left:0;border-top:1px solid var(--line);padding-bottom:calc(90px + env(safe-area-inset-bottom))}
@@ -125,10 +147,13 @@ textarea{min-height:70px;resize:vertical}
   <button class="pill cal-only" id="todayBtn">오늘</button>
   <div class="spacer"></div>
   <span class="status" id="status"></span>
-  <button class="icon-btn" id="modeBtn" title="메모" aria-label="메모/캘린더 전환">📝</button>
+  <div class="tabs" id="tabs"><button data-m="cal">일정</button><button data-m="notes">메모</button></div>
   <button class="icon-btn" id="syncBtn" title="지금 동기화" aria-label="동기화">⟳</button>
   <button class="icon-btn" id="settingsBtn" title="설정" aria-label="설정">⚙︎</button>
 </header>
+<div id="pager"><div id="track">
+<div class="page" id="pageCal">
+<div class="fbar" id="fbar-cal"></div>
 <main>
   <section class="cal">
     <div class="weekdays"><div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div></div>
@@ -139,19 +164,25 @@ textarea{min-height:70px;resize:vertical}
     <ul class="list" id="dayList"></ul>
   </aside>
 </main>
+</div>
+<div class="page" id="pageNotes">
+<div class="fbar" id="fbar-notes"></div>
 <section class="notes" id="notesView">
   <div class="notes-bar">
     <input id="noteSearch" type="search" placeholder="메모 검색" autocomplete="off">
     <button class="add" id="addNoteBtn">+ 새 메모</button>
   </div>
-  <div class="ngrid" id="noteGrid"></div>
+  <div id="noteGrid"></div>
 </section>
+</div>
+</div></div>
 <button class="fab" id="fab" aria-label="일정 추가">+</button>
 
 <dialog id="eventDlg">
   <form class="f" id="eventForm" method="dialog">
     <h3 id="eventDlgTitle">새 일정</h3>
     <label>제목<input name="title" required maxlength="200" autocomplete="off"></label>
+    <label>폴더<select name="folder"></select></label>
     <div class="row">
       <label>시작일<input type="date" name="date" required></label>
       <label>종료일<input type="date" name="endDate"></label>
@@ -173,11 +204,25 @@ textarea{min-height:70px;resize:vertical}
 
 <dialog id="noteDlg">
   <form class="f" id="noteForm" method="dialog">
+    <select id="noteFolder" aria-label="폴더"></select>
     <textarea id="noteText" placeholder="첫 줄이 제목이 됩니다" maxlength="20000"></textarea>
     <div class="actions" style="align-items:center">
       <span class="note" id="noteMeta" style="margin-right:auto"></span>
       <button type="button" class="btn danger" id="noteDel" style="margin-right:0">삭제</button>
       <button type="submit" class="btn primary">완료</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="folderDlg">
+  <form class="f" id="folderForm" method="dialog">
+    <h3 id="folderDlgTitle">새 폴더</h3>
+    <label>폴더 이름<input name="name" required maxlength="40" autocomplete="off"></label>
+    <p class="note" id="folderNote"></p>
+    <div class="actions">
+      <button type="button" class="btn danger" id="folderDel">삭제</button>
+      <button type="button" class="btn" id="folderCancel">취소</button>
+      <button type="submit" class="btn primary">저장</button>
     </div>
   </form>
 </dialog>
@@ -240,13 +285,18 @@ function b64decode(b64){
 let cfg = LS.get('cal.cfg', { owner:'', repo:'', token:'', branch:'main', path:'events.json' });
 let events = LS.get('cal.events', []);       // 삭제 표시(tombstone) 포함
 let notes = LS.get('cal.notes', []);         // 메모 (삭제 표시 포함)
+let folders = LS.get('cal.folders', []);     // 폴더 {id, kind:'cal'|'notes', name}
+let filter = LS.get('cal.filter', { cal: 'all', notes: 'all' }); // 'all' | 'none'(미분류) | 폴더 id
 let dirty = LS.get('cal.dirty', false);
 let mode = LS.get('cal.mode', 'cal');
 let lastSync = LS.get('cal.lastSync', 0);
 let view = new Date(); view.setDate(1);
 let selected = ymd(new Date());
 const configured = () => !!(cfg.owner && cfg.repo && cfg.token);
-const persist = () => { LS.set('cal.events', events); LS.set('cal.notes', notes); LS.set('cal.dirty', dirty); };
+const persist = () => { LS.set('cal.events', events); LS.set('cal.notes', notes); LS.set('cal.folders', folders); LS.set('cal.dirty', dirty); };
+const KEYS = ['events', 'notes', 'folders'];
+const getLocal = () => ({ events, notes, folders });
+function setLocal(o){ events = o.events; notes = o.notes; folders = o.folders; }
 
 /* ---------- GitHub API ---------- */
 function contentsUrl(c, withRef){
@@ -265,18 +315,20 @@ async function httpError(r){
 }
 async function fetchRemote(){
   const r = await fetch(contentsUrl(cfg, true), { cache:'no-store', headers: ghHeaders(cfg) });
-  if (r.status === 404) return { events: [], notes: [], sha: null };
+  if (r.status === 404) return { events: [], notes: [], folders: [], sha: null };
   if (!r.ok) throw await httpError(r);
   const j = await r.json();
   if (j.content == null || j.encoding === 'none') throw new Error('데이터 파일이 너무 큽니다(1MB 초과).');
   const text = b64decode(j.content).trim();
   const data = text ? JSON.parse(text) : {};
-  return { events: Array.isArray(data.events) ? data.events : [], notes: Array.isArray(data.notes) ? data.notes : [], sha: j.sha };
+  const out = { sha: j.sha };
+  for (const k of KEYS) out[k] = Array.isArray(data[k]) ? data[k] : [];
+  return out;
 }
-async function putRemote(list, noteList, sha){
+async function putRemote(lists, sha){
   const body = {
     message: `calendar: update (${navigator.platform || 'device'})`,
-    content: b64encode(JSON.stringify({ version: 1, events: list, notes: noteList }, null, 1)),
+    content: b64encode(JSON.stringify({ version: 1, events: lists.events, notes: lists.notes, folders: lists.folders }, null, 1)),
     branch: cfg.branch
   };
   if (sha) body.sha = sha;
@@ -314,12 +366,14 @@ async function sync(){
     let done = false;
     for (let attempt = 0; attempt < 4 && !done; attempt++) {
       const remote = await fetchRemote();
-      const merged = merge(events, remote.events), mergedN = merge(notes, remote.notes);
-      if (remote.sha && canon(merged) === canon(remote.events) && canon(mergedN) === canon(remote.notes)) { apply(merged, mergedN); done = true; break; }
-      const r = await putRemote(merged, mergedN, remote.sha);
+      const local = getLocal(), merged = {};
+      let same = !!remote.sha;
+      for (const k of KEYS) { merged[k] = merge(local[k], remote[k]); if (canon(merged[k]) !== canon(remote[k])) same = false; }
+      if (same) { apply(merged); done = true; break; }
+      const r = await putRemote(merged, remote.sha);
       if (r.status === 409 || r.status === 422) { await new Promise(res => setTimeout(res, 400 * (attempt + 1))); continue; } // 다른 기기가 먼저 저장함 → 다시 병합
       if (!r.ok) throw await httpError(r);
-      apply(merged, mergedN); done = true;
+      apply(merged); done = true;
     }
     if (!done) throw new Error('저장 충돌이 반복됩니다. 잠시 후 다시 시도하세요.');
     lastSync = Date.now(); LS.set('cal.lastSync', lastSync);
@@ -333,18 +387,96 @@ async function sync(){
     if (again) { again = false; sync(); }
   }
 }
-function apply(merged, mergedN){
+function apply(merged){
   // 동기화 도중 사용자가 수정한 내용은 보존
-  const combined = merge(events, merged), combinedN = merge(notes, mergedN);
-  dirty = canon(combined) !== canon(merged) || canon(combinedN) !== canon(mergedN);
-  events = combined; notes = combinedN; persist(); render(); renderNotes();
+  const local = getLocal(), comb = {};
+  dirty = false;
+  for (const k of KEYS) { comb[k] = merge(local[k], merged[k]); if (canon(comb[k]) !== canon(merged[k])) dirty = true; }
+  setLocal(comb); persist(); renderAll();
   if (dirty) again = true;
 }
+function renderAll(){ renderFolderBars(); render(); renderNotes(); }
+
+/* ---------- 폴더 ---------- */
+const liveFolders = kind => folders.filter(f => !f.deleted && f.kind === kind)
+  .sort((a, b) => (a.order || 0) - (b.order || 0) || a.name.localeCompare(b.name));
+function folderOf(item){ // 삭제된 폴더를 가리키면 미분류
+  if (!item.folder) return '';
+  const f = folders.find(x => x.id === item.folder);
+  return f && !f.deleted ? f.id : '';
+}
+const folderName = id => { const f = folders.find(x => x.id === id); return f ? f.name : ''; };
+function passes(item, kind){
+  const f = filter[kind];
+  if (f === 'all') return true;
+  const fid = folderOf(item);
+  return f === 'none' ? !fid : fid === f;
+}
+function renderFolderBars(){
+  for (const kind of ['cal', 'notes']) {
+    const list = liveFolders(kind);
+    if (filter[kind] !== 'all' && filter[kind] !== 'none' && !list.some(f => f.id === filter[kind])) filter[kind] = 'all';
+    if (filter[kind] === 'none' && !list.length) filter[kind] = 'all';
+    const bar = $('#fbar-' + kind); bar.replaceChildren();
+    const chip = (label, val, cls) => {
+      const b = el('button', 'fchip' + (cls ? ' ' + cls : ''), label);
+      if (val != null && filter[kind] === val) b.classList.add('on');
+      bar.append(b); return b;
+    };
+    chip('전체', 'all').onclick = () => setFilter(kind, 'all');
+    for (const f of list) {
+      const b = chip(f.name, f.id);
+      b.onclick = () => filter[kind] === f.id ? openFolder(kind, f) : setFilter(kind, f.id); // 선택된 폴더를 한 번 더 누르면 편집
+      b.oncontextmenu = e => { e.preventDefault(); openFolder(kind, f); };
+    }
+    if (list.length) chip('미분류', 'none').onclick = () => setFilter(kind, 'none');
+    chip('+ 폴더', null, 'fadd').onclick = () => openFolder(kind, null);
+  }
+  LS.set('cal.filter', filter);
+}
+function setFilter(kind, val){ filter[kind] = val; LS.set('cal.filter', filter); renderFolderBars(); if (kind === 'cal') render(); else renderNotes(); }
+function upsertFolder(f){
+  f.updatedAt = Date.now();
+  const i = folders.findIndex(x => x.id === f.id);
+  if (i >= 0) folders[i] = f; else folders.push(f);
+  dirty = true; persist(); renderAll(); scheduleSave();
+}
+const defaultFolder = kind => (filter[kind] !== 'all' && filter[kind] !== 'none') ? filter[kind] : '';
+function fillFolderSelect(sel, kind, value){
+  sel.replaceChildren();
+  const o = el('option', null, '폴더 없음 (미분류)'); o.value = ''; sel.append(o);
+  for (const f of liveFolders(kind)) { const x = el('option', null, f.name); x.value = f.id; sel.append(x); }
+  sel.value = liveFolders(kind).some(f => f.id === value) ? value : '';
+}
+const fdlg = $('#folderDlg'), fform = $('#folderForm');
+let editingFolder = null, folderKind = 'cal';
+function openFolder(kind, f){
+  folderKind = kind; editingFolder = f || null;
+  $('#folderDlgTitle').textContent = (f ? '폴더 편집' : '새 폴더') + (kind === 'cal' ? ' · 일정' : ' · 메모');
+  fform.name.value = f ? f.name : '';
+  $('#folderDel').style.display = f ? '' : 'none';
+  $('#folderNote').textContent = f ? '폴더를 삭제해도 안의 항목은 지워지지 않고 미분류로 옮겨집니다.' : '';
+  fdlg.showModal(); setTimeout(() => fform.name.focus(), 30);
+}
+fform.onsubmit = ev => {
+  ev.preventDefault();
+  const name = fform.name.value.trim(); if (!name) return;
+  if (editingFolder) upsertFolder({ ...editingFolder, name });
+  else { const f = { id: uid(), kind: folderKind, name, order: Date.now() }; filter[folderKind] = f.id; upsertFolder(f); }
+  fdlg.close();
+};
+$('#folderCancel').onclick = () => fdlg.close();
+$('#folderDel').onclick = () => {
+  if (!editingFolder || !confirm(`'${editingFolder.name}' 폴더를 삭제할까요?\n안의 ${folderKind === 'cal' ? '일정' : '메모'}은 삭제되지 않고 미분류로 옮겨집니다.`)) return;
+  filter[folderKind] = 'all';
+  upsertFolder({ id: editingFolder.id, kind: editingFolder.kind, name: editingFolder.name, deleted: true });
+  fdlg.close();
+};
 function scheduleSave(){ clearTimeout(saveTimer); saveTimer = setTimeout(sync, 800); idleStatus(); }
 
 /* ---------- 일정 조작 ---------- */
 const live = () => events.filter(e => !e.deleted);
-const eventsOn = key => live().filter(e => e.date <= key && key <= (e.endDate || e.date))
+const eventsOn = key => live().filter(e => passes(e, 'cal') && e.date <= key && key <= (e.endDate || e.date))
   .sort((a, b) => (b.allDay - a.allDay) || (a.start || '').localeCompare(b.start || '') || a.title.localeCompare(b.title));
 function upsert(ev){
   ev.updatedAt = Date.now();
@@ -400,7 +532,9 @@ function renderDay(){
     const body = el('div'); body.style.minWidth = '0';
     let t = e.allDay ? '종일' : [e.start, e.end].filter(Boolean).join(' – ') || '시간 미정';
     if (e.endDate && e.endDate !== e.date) { const a = parseYmd(e.date), b = parseYmd(e.endDate); t += ` · ${a.getMonth()+1}/${a.getDate()}~${b.getMonth()+1}/${b.getDate()}`; }
-    body.append(el('div', 't', t), el('div', 'ti', e.title));
+    const ti = el('div', 'ti', e.title);
+    if (filter.cal === 'all' && folderOf(e)) ti.append(el('span', 'ftag', folderName(folderOf(e))));
+    body.append(el('div', 't', t), ti);
     if (e.memo) body.append(el('div', 'memo', e.memo));
     li.append(bar, body); li.onclick = () => openEvent(e);
     ul.append(li);
@@ -432,6 +566,7 @@ function openEvent(ev, date){
   form.start.value = ev ? (ev.start || '') : '';
   form.end.value = ev ? (ev.end || '') : '';
   form.memo.value = ev ? (ev.memo || '') : '';
+  fillFolderSelect(form.folder, 'cal', ev ? folderOf(ev) : defaultFolder('cal'));
   const col = ev && ev.color || COLORS[0];
   form.querySelectorAll('input[name=color]').forEach(r => r.checked = r.value === col);
   syncTimeRow(); dlg.showModal(); setTimeout(() => form.title.focus(), 30);
@@ -447,7 +582,7 @@ form.onsubmit = ev => {
     id: editing ? editing.id : uid(), title, date: form.date.value, endDate,
     allDay, start: allDay ? '' : form.start.value, end: allDay ? '' : form.end.value,
     color: (form.querySelector('input[name=color]:checked') || {}).value || COLORS[0],
-    memo: form.memo.value.trim(), createdAt: editing ? editing.createdAt : Date.now()
+    memo: form.memo.value.trim(), folder: form.folder.value, createdAt: editing ? editing.createdAt : Date.now()
   });
   selected = form.date.value; const d = parseYmd(selected); view = new Date(d.getFullYear(), d.getMonth(), 1);
   dlg.close(); render();
@@ -471,17 +606,28 @@ function splitNote(text){
 function renderNotes(){
   const q = $('#noteSearch').value.trim().toLowerCase();
   const g = $('#noteGrid'); g.replaceChildren();
-  const list = liveNotes().filter(n => !q || (n.text || '').toLowerCase().includes(q));
+  const list = liveNotes().filter(n => passes(n, 'notes') && (!q || (n.text || '').toLowerCase().includes(q)));
   if (!list.length) { g.append(el('div', 'empty', q ? '검색 결과가 없습니다' : '메모가 없습니다. + 버튼으로 추가하세요')); return; }
-  for (const n of list) {
+  const card = n => {
     const [title, rest] = splitNote(n.text);
     const c = el('button', 'ncard');
     c.append(el('div', 'nt', title || '빈 메모'));
     if (rest) c.append(el('div', 'np', rest));
     c.append(el('div', 'nd', fmtTime(n.updatedAt)));
     c.onclick = () => openNote(n);
-    g.append(c);
-  }
+    return c;
+  };
+  const section = (heading, items) => {
+    const sec = el('div', 'ngroup');
+    if (heading) sec.append(el('h4', null, `${heading} · ${items.length}`));
+    const grid = el('div', 'ngrid'); items.forEach(n => grid.append(card(n)));
+    sec.append(grid); g.append(sec);
+  };
+  const fl = liveFolders('notes');
+  if (filter.notes === 'all' && fl.length) { // 전체 보기: 폴더별로 묶어서
+    for (const f of fl) { const items = list.filter(n => folderOf(n) === f.id); if (items.length) section(f.name, items); }
+    const rest = list.filter(n => !folderOf(n)); if (rest.length) section('미분류', rest);
+  } else section(null, list);
 }
 function upsertNote(n){
   n.updatedAt = Date.now();
@@ -492,28 +638,31 @@ function upsertNote(n){
 function removeNote(id){ upsertNote({ id, deleted: true, text: '' }); }
 
 const ndlg = $('#noteDlg'), ntext = $('#noteText');
-let editingNote = null, noteOrig = '', noteTimer = null;
+let editingNote = null, noteOrig = '', noteOrigFolder = '', noteTimer = null;
+const nfolder = $('#noteFolder');
 const trimEnd = s => s.replace(/\s+$/, '');
 function openNote(n){
   editingNote = n || null; noteOrig = n ? n.text : '';
   ntext.value = noteOrig;
+  fillFolderSelect(nfolder, 'notes', n ? folderOf(n) : defaultFolder('notes'));
+  noteOrigFolder = nfolder.value;
   $('#noteDel').style.display = n ? '' : 'none';
   $('#noteMeta').textContent = n ? `수정 ${fmtTime(n.updatedAt)}` : '';
   ndlg.showModal(); setTimeout(() => ntext.focus(), 30);
 }
 function saveNoteNow(){ // 입력 중 자동 저장
   clearTimeout(noteTimer);
-  const t = trimEnd(ntext.value);
-  if (t === trimEnd(noteOrig) || !t.trim()) return;
-  const n = { id: editingNote ? editingNote.id : uid(), text: t, createdAt: editingNote ? editingNote.createdAt : Date.now() };
-  upsertNote(n); editingNote = n; noteOrig = t;
+  const t = trimEnd(ntext.value), fo = nfolder.value;
+  if ((t === trimEnd(noteOrig) && fo === noteOrigFolder) || !t.trim()) return;
+  const n = { id: editingNote ? editingNote.id : uid(), text: t, folder: fo, createdAt: editingNote ? editingNote.createdAt : Date.now() };
+  upsertNote(n); editingNote = n; noteOrig = t; noteOrigFolder = fo;
   $('#noteDel').style.display = ''; $('#noteMeta').textContent = '저장됨';
 }
 ntext.addEventListener('input', () => { clearTimeout(noteTimer); noteTimer = setTimeout(saveNoteNow, 1500); });
 ndlg.addEventListener('close', () => {
   clearTimeout(noteTimer);
   const t = trimEnd(ntext.value);
-  if (t === trimEnd(noteOrig)) return;
+  if (t === trimEnd(noteOrig) && nfolder.value === noteOrigFolder) return;
   if (!t.trim()) { if (editingNote) removeNote(editingNote.id); return; } // 내용을 모두 지우면 삭제
   saveNoteNow();
 });
@@ -521,17 +670,78 @@ $('#noteDel').onclick = () => {
   if (!editingNote || !confirm('이 메모를 삭제할까요?')) return;
   const id = editingNote.id; noteOrig = ntext.value; ndlg.close(); removeNote(id);
 };
+nfolder.addEventListener('change', saveNoteNow);
 $('#noteSearch').addEventListener('input', renderNotes);
 $('#addNoteBtn').onclick = () => openNote(null);
 
-function setMode(m){
+const pager = $('#pager'), track = $('#track');
+function setMode(m, instant){
   mode = m; LS.set('cal.mode', m);
   document.body.classList.toggle('notes-mode', m === 'notes');
-  $('#modeBtn').textContent = m === 'notes' ? '📅' : '📝';
-  $('#modeBtn').title = m === 'notes' ? '캘린더' : '메모';
-  render(); renderNotes();
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+  if (instant) { track.classList.add('instant'); requestAnimationFrame(() => requestAnimationFrame(() => track.classList.remove('instant'))); }
+  track.style.transform = m === 'notes' ? 'translateX(-50%)' : 'translateX(0)';
+  $('#fab').setAttribute('aria-label', m === 'notes' ? '메모 추가' : '일정 추가');
+  render();
 }
-$('#modeBtn').onclick = () => setMode(mode === 'notes' ? 'cal' : 'notes');
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => setMode(b.dataset.m));
+
+/* 스와이프: 좌우 = 일정↔메모 전환, 달력 위아래 = 달 이동 (폰) */
+let sw = null;
+pager.addEventListener('touchstart', e => {
+  if (e.touches.length !== 1 || e.target.closest('.fbar')) { sw = null; return; }
+  const t = e.touches[0];
+  sw = { x: t.clientX, y: t.clientY, t: Date.now(), lock: null, grid: !!e.target.closest('#grid') };
+}, { passive: true });
+pager.addEventListener('touchmove', e => {
+  if (!sw) return;
+  const t = e.touches[0], dx = t.clientX - sw.x, dy = t.clientY - sw.y;
+  if (!sw.lock) {
+    if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+    sw.lock = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+    if (sw.lock === 'x') track.classList.add('dragging');
+  }
+  if (sw.lock === 'x') {
+    if (e.cancelable) e.preventDefault();
+    const w = pager.clientWidth;
+    let off = (mode === 'notes' ? -w : 0) + dx;
+    if (off > 0) off *= 0.3;                 // 양 끝에서는 고무줄처럼
+    if (off < -w) off = -w + (off + w) * 0.3;
+    track.style.transform = `translateX(${off}px)`;
+  } else if (sw.grid && e.cancelable) e.preventDefault();
+}, { passive: false });
+pager.addEventListener('touchend', e => {
+  if (!sw) return;
+  const t = e.changedTouches[0], dx = t.clientX - sw.x, dy = t.clientY - sw.y;
+  if (sw.lock === 'x') {
+    track.classList.remove('dragging');
+    const fast = Math.abs(dx) / Math.max(1, Date.now() - sw.t) > 0.5;
+    let m = mode;
+    if (Math.abs(dx) > pager.clientWidth * 0.25 || fast) m = dx < 0 ? 'notes' : 'cal';
+    setMode(m);
+  } else if (sw.lock === 'y' && sw.grid && mode === 'cal' && Math.abs(dy) > 50) {
+    shiftMonth(dy < 0 ? 1 : -1);
+  }
+  sw = null;
+});
+pager.addEventListener('touchcancel', () => { if (sw && sw.lock === 'x') { track.classList.remove('dragging'); setMode(mode); } sw = null; });
+
+/* 맥 트랙패드: 두 손가락 좌우 스와이프 */
+let wAcc = 0, wTimer = null, wLockUntil = 0;
+pager.addEventListener('wheel', e => {
+  if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+  const fb = e.target.closest('.fbar');
+  if (fb && fb.scrollWidth > fb.clientWidth) return; // 폴더 칩 가로 스크롤은 그대로
+  if (e.cancelable) e.preventDefault();               // 브라우저 '뒤로 가기' 제스처 방지
+  if (Date.now() < wLockUntil) return;
+  wAcc += e.deltaX;
+  clearTimeout(wTimer); wTimer = setTimeout(() => { wAcc = 0; }, 200);
+  if (Math.abs(wAcc) > 60) {
+    const m = wAcc > 0 ? 'notes' : 'cal';
+    wAcc = 0; wLockUntil = Date.now() + 700;          // 관성 스크롤로 연속 전환되지 않게
+    if (m !== mode) setMode(m);
+  }
+}, { passive: false });
 
 /* ---------- 설정 대화상자 ---------- */
 const sdlg = $('#settingsDlg'), sform = $('#settingsForm');
@@ -578,18 +788,19 @@ sform.onsubmit = async ev => {
   const c = readSettings();
   if (!(await testConnection(c))) return;
   const changedTarget = c.owner !== cfg.owner || c.repo !== cfg.repo || c.path !== cfg.path || c.branch !== cfg.branch;
-  if (changedTarget && cfg.owner && live().length && !confirm('저장소가 바뀌었습니다. 이 기기의 기존 일정·메모를 새 저장소에 합칠까요?\n(취소하면 이 기기의 기존 캐시를 지우고 새 저장소 내용을 불러옵니다)')) { events = []; notes = []; dirty = false; persist(); }
+  if (changedTarget && cfg.owner && live().length && !confirm('저장소가 바뀌었습니다. 이 기기의 기존 일정·메모를 새 저장소에 합칠까요?\n(취소하면 이 기기의 기존 캐시를 지우고 새 저장소 내용을 불러옵니다)')) { events = []; notes = []; folders = []; dirty = false; persist(); }
   cfg = c; LS.set('cal.cfg', cfg); sdlg.close(); sync();
 };
 $('#closeSettings').onclick = () => sdlg.close();
 $('#logoutBtn').onclick = () => {
   if (!confirm('이 기기에 저장된 토큰과 일정 캐시를 삭제할까요?\n(GitHub에 저장된 일정은 그대로 남습니다. 동기화 안 된 변경사항은 사라집니다)')) return;
-  ['cal.cfg','cal.events','cal.notes','cal.dirty','cal.lastSync'].forEach(LS.del);
-  cfg = { owner:'', repo:'', token:'', branch:'main', path:'events.json' }; events = []; notes = []; dirty = false; lastSync = 0;
-  sdlg.close(); render(); renderNotes(); idleStatus();
+  ['cal.cfg','cal.events','cal.notes','cal.folders','cal.filter','cal.dirty','cal.lastSync'].forEach(LS.del);
+  cfg = { owner:'', repo:'', token:'', branch:'main', path:'events.json' }; events = []; notes = []; folders = []; dirty = false; lastSync = 0;
+  filter = { cal: 'all', notes: 'all' };
+  sdlg.close(); renderAll(); idleStatus();
 };
 $('#exportBtn').onclick = () => {
-  const blob = new Blob([JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), events: live(), notes: liveNotes() }, null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), events: live(), notes: liveNotes(), folders: folders.filter(f => !f.deleted) }, null, 2)], { type: 'application/json' });
   const a = el('a'); a.href = URL.createObjectURL(blob); a.download = `calendar-backup-${ymd(new Date())}.json`; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 };
@@ -612,13 +823,6 @@ document.addEventListener('keydown', e => {
   else if (e.key === 'ArrowRight') shiftMonth(1);
   else if (e.key === 't') $('#todayBtn').click();
 });
-let tx = null, ty = null;
-$('.cal').addEventListener('touchstart', e => { tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, { passive: true });
-$('.cal').addEventListener('touchend', e => {
-  if (tx == null) return;
-  const dx = e.changedTouches[0].clientX - tx, dy = e.changedTouches[0].clientY - ty; tx = null;
-  if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) shiftMonth(dx < 0 ? 1 : -1);
-});
 
 /* ---------- 자동 동기화 트리거 ---------- */
 document.addEventListener('visibilitychange', () => {
@@ -631,7 +835,18 @@ setInterval(() => { if (document.visibilityState === 'visible') sync(); }, 60000
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 
-setMode(mode); idleStatus();
+/* ---------- 위젯에서 열기: #date=YYYY-MM-DD 또는 #notes ---------- */
+function handleHash(){
+  const h = location.hash;
+  if (!h) return;
+  const m = h.match(/^#date=(\d{4}-\d{2}-\d{2})$/);
+  if (m) { selected = m[1]; const d = parseYmd(selected); view = new Date(d.getFullYear(), d.getMonth(), 1); setFilter('cal', 'all'); setMode('cal'); }
+  else if (h === '#notes') setMode('notes');
+  history.replaceState(null, '', location.pathname + location.search);
+}
+window.addEventListener('hashchange', handleHash);
+
+renderFolderBars(); setMode(mode, true); renderNotes(); handleHash(); idleStatus();
 if (configured()) sync(); else setTimeout(openSettings, 300);
 </script>
 </body>
