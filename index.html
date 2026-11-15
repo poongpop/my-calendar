@@ -29,7 +29,7 @@ header h1{font-size:19px;margin:0 6px;min-width:120px;text-align:center;font-wei
 .icon-btn{width:36px;height:36px;border-radius:10px;font-size:20px;display:grid;place-items:center}
 .icon-btn:hover{background:var(--soft)}
 .pill{white-space:nowrap;flex:none;padding:6px 12px;border-radius:999px;border:1px solid var(--line);font-size:14px}
-.spacer{flex:1}
+.spacer{flex:1;min-width:0}
 .status{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40vw}
 .status.err{color:var(--danger)}
 main{display:flex;gap:0;min-height:calc(100% - 60px)}
@@ -62,6 +62,21 @@ ul.list .ti{font-weight:600;margin:1px 0}
 ul.list .memo{font-size:13px;color:var(--muted);white-space:pre-wrap;word-break:break-word}
 .empty{color:var(--muted);font-size:14px;padding:20px 0;text-align:center}
 .fab{display:none}
+body.notes-mode main,body:not(.notes-mode) #notesView,body.notes-mode .cal-only{display:none}
+.notes{padding:14px 16px calc(90px + env(safe-area-inset-bottom));max-width:1100px;margin:0 auto}
+.notes-bar{display:flex;gap:8px;margin-bottom:12px;align-items:center}
+.notes-bar input{flex:1}
+.ngrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+.ngrid .empty{grid-column:1/-1}
+.ncard{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:12px 14px;text-align:left;
+  display:flex;flex-direction:column;gap:6px;min-height:110px;min-width:0}
+.ncard:hover{border-color:var(--accent)}
+.ncard .nt{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ncard .np{font-size:13px;color:var(--muted);white-space:pre-wrap;word-break:break-word;
+  display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.ncard .nd{font-size:11px;color:var(--muted);margin-top:auto}
+#noteDlg{width:min(680px,96vw)}
+#noteText{min-height:50vh;font-size:15px;line-height:1.6;background:var(--bg)}
 @media (max-width:760px){
   main{flex-direction:column;min-height:0}
   .cal{flex:none}
@@ -76,7 +91,7 @@ ul.list .memo{font-size:13px;color:var(--muted);white-space:pre-wrap;word-break:
   .hide-m{display:none}
   .fab{display:grid;position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));width:56px;height:56px;
     border-radius:18px;background:var(--accent);color:#fff;font-size:28px;place-items:center;box-shadow:0 6px 20px rgba(0,0,0,.25);z-index:6}
-  .dayhead .add{display:none}
+  .dayhead .add,#addNoteBtn{display:none}
 }
 dialog{border:0;border-radius:16px;padding:0;width:min(440px,94vw);background:var(--bg);color:var(--fg);box-shadow:0 20px 60px rgba(0,0,0,.35)}
 dialog::backdrop{background:rgba(10,12,20,.45)}
@@ -104,12 +119,13 @@ textarea{min-height:70px;resize:vertical}
 </head>
 <body>
 <header>
-  <button class="icon-btn" id="prev" aria-label="이전 달">‹</button>
+  <button class="icon-btn cal-only" id="prev" aria-label="이전 달">‹</button>
   <h1 id="title"></h1>
-  <button class="icon-btn" id="next" aria-label="다음 달">›</button>
-  <button class="pill" id="todayBtn">오늘</button>
+  <button class="icon-btn cal-only" id="next" aria-label="다음 달">›</button>
+  <button class="pill cal-only" id="todayBtn">오늘</button>
   <div class="spacer"></div>
   <span class="status" id="status"></span>
+  <button class="icon-btn" id="modeBtn" title="메모" aria-label="메모/캘린더 전환">📝</button>
   <button class="icon-btn" id="syncBtn" title="지금 동기화" aria-label="동기화">⟳</button>
   <button class="icon-btn" id="settingsBtn" title="설정" aria-label="설정">⚙︎</button>
 </header>
@@ -123,6 +139,13 @@ textarea{min-height:70px;resize:vertical}
     <ul class="list" id="dayList"></ul>
   </aside>
 </main>
+<section class="notes" id="notesView">
+  <div class="notes-bar">
+    <input id="noteSearch" type="search" placeholder="메모 검색" autocomplete="off">
+    <button class="add" id="addNoteBtn">+ 새 메모</button>
+  </div>
+  <div class="ngrid" id="noteGrid"></div>
+</section>
 <button class="fab" id="fab" aria-label="일정 추가">+</button>
 
 <dialog id="eventDlg">
@@ -148,13 +171,24 @@ textarea{min-height:70px;resize:vertical}
   </form>
 </dialog>
 
+<dialog id="noteDlg">
+  <form class="f" id="noteForm" method="dialog">
+    <textarea id="noteText" placeholder="첫 줄이 제목이 됩니다" maxlength="20000"></textarea>
+    <div class="actions" style="align-items:center">
+      <span class="note" id="noteMeta" style="margin-right:auto"></span>
+      <button type="button" class="btn danger" id="noteDel" style="margin-right:0">삭제</button>
+      <button type="submit" class="btn primary">완료</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="settingsDlg">
   <form class="f" id="settingsForm" method="dialog">
     <h3>동기화 설정</h3>
     <p class="note">일정은 아래 <b>비공개 저장소</b>의 JSON 파일에 저장됩니다. 토큰은 이 기기의 브라우저에만 저장되며 GitHub 외 어디로도 전송되지 않습니다.</p>
     <div class="row">
       <label>GitHub 사용자명<input name="owner" required autocomplete="off" autocapitalize="off" spellcheck="false"></label>
-      <label>데이터 저장소<input name="repo" required autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="my-calendar-data"></label>
+      <label>데이터 저장소<input name="repo" required autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="예: my-calendar-data"></label>
     </div>
     <div class="row">
       <label>브랜치<input name="branch" required value="main" autocapitalize="off" spellcheck="false"></label>
@@ -205,12 +239,14 @@ function b64decode(b64){
 /* ---------- 상태 ---------- */
 let cfg = LS.get('cal.cfg', { owner:'', repo:'', token:'', branch:'main', path:'events.json' });
 let events = LS.get('cal.events', []);       // 삭제 표시(tombstone) 포함
+let notes = LS.get('cal.notes', []);         // 메모 (삭제 표시 포함)
 let dirty = LS.get('cal.dirty', false);
+let mode = LS.get('cal.mode', 'cal');
 let lastSync = LS.get('cal.lastSync', 0);
 let view = new Date(); view.setDate(1);
 let selected = ymd(new Date());
 const configured = () => !!(cfg.owner && cfg.repo && cfg.token);
-const persist = () => { LS.set('cal.events', events); LS.set('cal.dirty', dirty); };
+const persist = () => { LS.set('cal.events', events); LS.set('cal.notes', notes); LS.set('cal.dirty', dirty); };
 
 /* ---------- GitHub API ---------- */
 function contentsUrl(c, withRef){
@@ -229,18 +265,18 @@ async function httpError(r){
 }
 async function fetchRemote(){
   const r = await fetch(contentsUrl(cfg, true), { cache:'no-store', headers: ghHeaders(cfg) });
-  if (r.status === 404) return { events: [], sha: null };
+  if (r.status === 404) return { events: [], notes: [], sha: null };
   if (!r.ok) throw await httpError(r);
   const j = await r.json();
   if (j.content == null || j.encoding === 'none') throw new Error('데이터 파일이 너무 큽니다(1MB 초과).');
   const text = b64decode(j.content).trim();
-  const data = text ? JSON.parse(text) : { events: [] };
-  return { events: Array.isArray(data.events) ? data.events : [], sha: j.sha };
+  const data = text ? JSON.parse(text) : {};
+  return { events: Array.isArray(data.events) ? data.events : [], notes: Array.isArray(data.notes) ? data.notes : [], sha: j.sha };
 }
-async function putRemote(list, sha){
+async function putRemote(list, noteList, sha){
   const body = {
     message: `calendar: update (${navigator.platform || 'device'})`,
-    content: b64encode(JSON.stringify({ version: 1, events: list }, null, 1)),
+    content: b64encode(JSON.stringify({ version: 1, events: list, notes: noteList }, null, 1)),
     branch: cfg.branch
   };
   if (sha) body.sha = sha;
@@ -278,30 +314,30 @@ async function sync(){
     let done = false;
     for (let attempt = 0; attempt < 4 && !done; attempt++) {
       const remote = await fetchRemote();
-      const merged = merge(events, remote.events);
-      if (remote.sha && canon(merged) === canon(remote.events)) { apply(merged); done = true; break; }
-      const r = await putRemote(merged, remote.sha);
+      const merged = merge(events, remote.events), mergedN = merge(notes, remote.notes);
+      if (remote.sha && canon(merged) === canon(remote.events) && canon(mergedN) === canon(remote.notes)) { apply(merged, mergedN); done = true; break; }
+      const r = await putRemote(merged, mergedN, remote.sha);
       if (r.status === 409 || r.status === 422) { await new Promise(res => setTimeout(res, 400 * (attempt + 1))); continue; } // 다른 기기가 먼저 저장함 → 다시 병합
       if (!r.ok) throw await httpError(r);
-      apply(merged); done = true;
+      apply(merged, mergedN); done = true;
     }
     if (!done) throw new Error('저장 충돌이 반복됩니다. 잠시 후 다시 시도하세요.');
     lastSync = Date.now(); LS.set('cal.lastSync', lastSync);
     idleStatus();
   } catch (e) {
     console.error(e);
-    const hint = e.status === 401 ? '토큰이 잘못됐거나 만료됨' : e.status === 403 ? '권한 부족(토큰 권한 확인)' : e.status === 404 ? '저장소를 찾을 수 없음' : (e.message || '오류');
+    const hint = e.status === 401 ? '토큰이 잘못됐거나 만료됨' : e.status === 403 ? '권한 부족(토큰 권한 확인)' : e.status === 404 ? '저장소를 찾을 수 없음' : e instanceof TypeError ? '네트워크 오류' : (e.message || '오류');
     setStatus(`동기화 실패: ${hint}`, true);
   } finally {
     syncing = false;
     if (again) { again = false; sync(); }
   }
 }
-function apply(merged){
+function apply(merged, mergedN){
   // 동기화 도중 사용자가 수정한 내용은 보존
-  const combined = merge(events, merged);
-  dirty = canon(combined) !== canon(merged);
-  events = combined; persist(); render();
+  const combined = merge(events, merged), combinedN = merge(notes, mergedN);
+  dirty = canon(combined) !== canon(merged) || canon(combinedN) !== canon(mergedN);
+  events = combined; notes = combinedN; persist(); render(); renderNotes();
   if (dirty) again = true;
 }
 function scheduleSave(){ clearTimeout(saveTimer); saveTimer = setTimeout(sync, 800); idleStatus(); }
@@ -323,7 +359,7 @@ function remove(id){
 
 /* ---------- 렌더링 ---------- */
 function render(){
-  $('#title').textContent = `${view.getFullYear()}년 ${view.getMonth() + 1}월`;
+  $('#title').textContent = mode === 'notes' ? '메모' : `${view.getFullYear()}년 ${view.getMonth() + 1}월`;
   const grid = $('#grid'); grid.replaceChildren();
   const first = new Date(view.getFullYear(), view.getMonth(), 1);
   const start = new Date(first); start.setDate(1 - first.getDay());
@@ -419,9 +455,87 @@ form.onsubmit = ev => {
 $('#cancelBtn').onclick = () => dlg.close();
 $('#delBtn').onclick = () => { if (editing && confirm(`'${editing.title}' 일정을 삭제할까요?`)) { remove(editing.id); dlg.close(); } };
 
+/* ---------- 메모 ---------- */
+const liveNotes = () => notes.filter(n => !n.deleted).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+function fmtTime(ts){
+  if (!ts) return '';
+  const d = new Date(ts), now = new Date();
+  if (ymd(d) === ymd(now)) return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  if (d.getFullYear() === now.getFullYear()) return `${d.getMonth() + 1}월 ${d.getDate()}일`;
+  return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
+}
+function splitNote(text){
+  const t = (text || '').trim(), i = t.indexOf('\n');
+  return i < 0 ? [t, ''] : [t.slice(0, i).trim(), t.slice(i + 1).trim()];
+}
+function renderNotes(){
+  const q = $('#noteSearch').value.trim().toLowerCase();
+  const g = $('#noteGrid'); g.replaceChildren();
+  const list = liveNotes().filter(n => !q || (n.text || '').toLowerCase().includes(q));
+  if (!list.length) { g.append(el('div', 'empty', q ? '검색 결과가 없습니다' : '메모가 없습니다. + 버튼으로 추가하세요')); return; }
+  for (const n of list) {
+    const [title, rest] = splitNote(n.text);
+    const c = el('button', 'ncard');
+    c.append(el('div', 'nt', title || '빈 메모'));
+    if (rest) c.append(el('div', 'np', rest));
+    c.append(el('div', 'nd', fmtTime(n.updatedAt)));
+    c.onclick = () => openNote(n);
+    g.append(c);
+  }
+}
+function upsertNote(n){
+  n.updatedAt = Date.now();
+  const i = notes.findIndex(x => x.id === n.id);
+  if (i >= 0) notes[i] = n; else notes.push(n);
+  dirty = true; persist(); renderNotes(); scheduleSave();
+}
+function removeNote(id){ upsertNote({ id, deleted: true, text: '' }); }
+
+const ndlg = $('#noteDlg'), ntext = $('#noteText');
+let editingNote = null, noteOrig = '', noteTimer = null;
+const trimEnd = s => s.replace(/\s+$/, '');
+function openNote(n){
+  editingNote = n || null; noteOrig = n ? n.text : '';
+  ntext.value = noteOrig;
+  $('#noteDel').style.display = n ? '' : 'none';
+  $('#noteMeta').textContent = n ? `수정 ${fmtTime(n.updatedAt)}` : '';
+  ndlg.showModal(); setTimeout(() => ntext.focus(), 30);
+}
+function saveNoteNow(){ // 입력 중 자동 저장
+  clearTimeout(noteTimer);
+  const t = trimEnd(ntext.value);
+  if (t === trimEnd(noteOrig) || !t.trim()) return;
+  const n = { id: editingNote ? editingNote.id : uid(), text: t, createdAt: editingNote ? editingNote.createdAt : Date.now() };
+  upsertNote(n); editingNote = n; noteOrig = t;
+  $('#noteDel').style.display = ''; $('#noteMeta').textContent = '저장됨';
+}
+ntext.addEventListener('input', () => { clearTimeout(noteTimer); noteTimer = setTimeout(saveNoteNow, 1500); });
+ndlg.addEventListener('close', () => {
+  clearTimeout(noteTimer);
+  const t = trimEnd(ntext.value);
+  if (t === trimEnd(noteOrig)) return;
+  if (!t.trim()) { if (editingNote) removeNote(editingNote.id); return; } // 내용을 모두 지우면 삭제
+  saveNoteNow();
+});
+$('#noteDel').onclick = () => {
+  if (!editingNote || !confirm('이 메모를 삭제할까요?')) return;
+  const id = editingNote.id; noteOrig = ntext.value; ndlg.close(); removeNote(id);
+};
+$('#noteSearch').addEventListener('input', renderNotes);
+$('#addNoteBtn').onclick = () => openNote(null);
+
+function setMode(m){
+  mode = m; LS.set('cal.mode', m);
+  document.body.classList.toggle('notes-mode', m === 'notes');
+  $('#modeBtn').textContent = m === 'notes' ? '📅' : '📝';
+  $('#modeBtn').title = m === 'notes' ? '캘린더' : '메모';
+  render(); renderNotes();
+}
+$('#modeBtn').onclick = () => setMode(mode === 'notes' ? 'cal' : 'notes');
+
 /* ---------- 설정 대화상자 ---------- */
 const sdlg = $('#settingsDlg'), sform = $('#settingsForm');
-function readSettings(){ return { owner: sform.owner.value.trim(), repo: sform.repo.value.trim(), branch: sform.branch.value.trim() || 'main', path: sform.path.value.trim().replace(/^\/+/, '') || 'events.json', token: sform.token.value.trim() }; }
+function readSettings(){ return { owner: sform.owner.value.trim(), repo: sform.repo.value.trim(), branch: sform.branch.value.trim() || 'main', path: sform.path.value.trim().replace(/^\/+/, '') || 'events.json', token: sform.token.value.replace(/\s+/g, '') }; }
 function openSettings(){
   for (const k of ['owner','repo','branch','path','token']) sform[k].value = cfg[k] || '';
   if (!sform.branch.value) sform.branch.value = 'main';
@@ -430,7 +544,11 @@ function openSettings(){
   sdlg.showModal();
 }
 async function testConnection(c){
-  const msg = $('#testMsg'); msg.className = 'msg'; msg.textContent = '확인 중…';
+  const msg = $('#testMsg'); msg.className = 'msg';
+  const missing = [['owner','GitHub 사용자명'],['repo','데이터 저장소'],['token','토큰']].filter(([k]) => !c[k]).map(([, n]) => n);
+  if (missing.length) { msg.className = 'msg bad'; msg.textContent = `✗ 비어 있는 칸: ${missing.join(', ')}\n(회색 글씨는 예시일 뿐 입력된 값이 아닙니다)`; return false; }
+  if (/[^\x21-\x7e]/.test(c.token)) { msg.className = 'msg bad'; msg.textContent = '✗ 토큰에 영문/숫자 외의 문자가 섞여 있습니다. 토큰을 다시 복사해 붙여넣으세요.'; return false; }
+  msg.textContent = '확인 중…';
   try {
     const r = await fetch(`https://api.github.com/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}`, { cache:'no-store', headers: ghHeaders(c) });
     if (!r.ok) throw await httpError(r);
@@ -448,7 +566,9 @@ async function testConnection(c){
     msg.className = 'msg bad';
     msg.textContent = e.status === 401 ? '✗ 토큰이 올바르지 않거나 만료되었습니다.'
       : e.status === 404 ? '✗ 저장소를 찾을 수 없습니다.\n사용자명/저장소 이름, 그리고 토큰의 저장소 접근 범위를 확인하세요.'
-      : e.status === 403 ? '✗ 접근 거부: 토큰 권한을 확인하세요.' : `✗ ${e.message}`;
+      : e.status === 403 ? '✗ 접근 거부: 토큰 권한을 확인하세요.'
+      : e instanceof TypeError ? '✗ GitHub에 연결하지 못했습니다(네트워크 오류).\n인터넷 연결, 광고 차단 확장 프로그램, 또는 index.html을 파일로 직접 연 것이 아닌지(주소가 https://…github.io 인지) 확인하세요.'
+      : `✗ ${e.message}`;
     return false;
   }
 }
@@ -458,18 +578,18 @@ sform.onsubmit = async ev => {
   const c = readSettings();
   if (!(await testConnection(c))) return;
   const changedTarget = c.owner !== cfg.owner || c.repo !== cfg.repo || c.path !== cfg.path || c.branch !== cfg.branch;
-  if (changedTarget && cfg.owner && live().length && !confirm('저장소가 바뀌었습니다. 이 기기의 기존 일정을 새 저장소에 합칠까요?\n(취소하면 이 기기의 기존 일정 캐시를 지우고 새 저장소 내용을 불러옵니다)')) { events = []; dirty = false; persist(); }
+  if (changedTarget && cfg.owner && live().length && !confirm('저장소가 바뀌었습니다. 이 기기의 기존 일정·메모를 새 저장소에 합칠까요?\n(취소하면 이 기기의 기존 캐시를 지우고 새 저장소 내용을 불러옵니다)')) { events = []; notes = []; dirty = false; persist(); }
   cfg = c; LS.set('cal.cfg', cfg); sdlg.close(); sync();
 };
 $('#closeSettings').onclick = () => sdlg.close();
 $('#logoutBtn').onclick = () => {
   if (!confirm('이 기기에 저장된 토큰과 일정 캐시를 삭제할까요?\n(GitHub에 저장된 일정은 그대로 남습니다. 동기화 안 된 변경사항은 사라집니다)')) return;
-  ['cal.cfg','cal.events','cal.dirty','cal.lastSync'].forEach(LS.del);
-  cfg = { owner:'', repo:'', token:'', branch:'main', path:'events.json' }; events = []; dirty = false; lastSync = 0;
-  sdlg.close(); render(); idleStatus();
+  ['cal.cfg','cal.events','cal.notes','cal.dirty','cal.lastSync'].forEach(LS.del);
+  cfg = { owner:'', repo:'', token:'', branch:'main', path:'events.json' }; events = []; notes = []; dirty = false; lastSync = 0;
+  sdlg.close(); render(); renderNotes(); idleStatus();
 };
 $('#exportBtn').onclick = () => {
-  const blob = new Blob([JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), events: live() }, null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), events: live(), notes: liveNotes() }, null, 2)], { type: 'application/json' });
   const a = el('a'); a.href = URL.createObjectURL(blob); a.download = `calendar-backup-${ymd(new Date())}.json`; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 };
@@ -480,15 +600,17 @@ $('#prev').onclick = () => shiftMonth(-1);
 $('#next').onclick = () => shiftMonth(1);
 $('#todayBtn').onclick = () => { const t = new Date(); view = new Date(t.getFullYear(), t.getMonth(), 1); selected = ymd(t); render(); };
 $('#addBtn').onclick = () => openEvent(null, selected);
-$('#fab').onclick = () => openEvent(null, selected);
+$('#fab').onclick = () => mode === 'notes' ? openNote(null) : openEvent(null, selected);
 $('#settingsBtn').onclick = openSettings;
 $('#syncBtn').onclick = sync;
 document.addEventListener('keydown', e => {
   if (document.querySelector('dialog[open]') || e.metaKey || e.ctrlKey || e.altKey || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
-  if (e.key === 'ArrowLeft') shiftMonth(-1);
+  if (e.key === 'm') setMode(mode === 'notes' ? 'cal' : 'notes');
+  else if (e.key === 'n') { e.preventDefault(); mode === 'notes' ? openNote(null) : openEvent(null, selected); }
+  else if (mode === 'notes') return;
+  else if (e.key === 'ArrowLeft') shiftMonth(-1);
   else if (e.key === 'ArrowRight') shiftMonth(1);
   else if (e.key === 't') $('#todayBtn').click();
-  else if (e.key === 'n') { e.preventDefault(); openEvent(null, selected); }
 });
 let tx = null, ty = null;
 $('.cal').addEventListener('touchstart', e => { tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, { passive: true });
@@ -499,14 +621,17 @@ $('.cal').addEventListener('touchend', e => {
 });
 
 /* ---------- 자동 동기화 트리거 ---------- */
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sync(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') sync();
+  else if (ndlg.open) saveNoteNow(); // 폰에서 앱을 전환할 때 작성 중인 메모 보존
+});
 window.addEventListener('online', sync);
 window.addEventListener('offline', idleStatus);
 setInterval(() => { if (document.visibilityState === 'visible') sync(); }, 60000);
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 
-render(); idleStatus();
+setMode(mode); idleStatus();
 if (configured()) sync(); else setTimeout(openSettings, 300);
 </script>
 </body>
