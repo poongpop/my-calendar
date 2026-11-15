@@ -121,12 +121,13 @@ body.dragging-todo,body.dragging-todo *{cursor:grabbing!important;user-select:no
 .weekboard{border-right:1px solid var(--line);border-bottom:2px solid var(--accent);background:var(--bg);overflow-x:auto;touch-action:pan-x pan-y}
 .wb-grid{display:grid;grid-template-columns:var(--wk) repeat(7,minmax(120px,1fr));min-width:fit-content}
 .wb-corner,.wb-slot{background:var(--soft);border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
-.wb-slot{font-size:11px;font-weight:700;color:var(--muted);display:flex;align-items:flex-start;justify-content:center;padding-top:8px;
+.wb-slot{font-size:11px;font-weight:700;color:var(--muted);display:flex;word-break:keep-all;padding-left:2px;padding-right:2px;align-items:flex-start;justify-content:center;padding-top:8px;
   writing-mode:horizontal-tb;text-align:center;line-height:1.2}
-.wb-day{font-size:13px;font-weight:700;padding:7px 4px;background:var(--accent);color:#fff;border-right:1px solid rgba(255,255,255,.25)}
-.wb-day.sat{background:#26407a}.wb-day.sun{background:#b5562b}
-.wb-day.today{box-shadow:inset 0 -3px 0 #fff}
-.wb-day.sel{text-decoration:underline;text-underline-offset:3px}
+.wb-day{font-size:12px;font-weight:600;padding:7px 4px;background:var(--soft);color:var(--fg);
+  border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.wb-day:hover{background:var(--accent-soft)}
+.wb-day.today{color:var(--accent);font-weight:800}
+.wb-day.sel{background:var(--accent-soft)}
 .slot.wslot{border-radius:0;border:0;border-right:1px solid var(--line);border-bottom:1px solid var(--line);
   background:var(--bg);padding:4px 6px 2px;min-height:70px;outline:2px solid transparent;outline-offset:-2px}
 .slot.wslot.over{outline-color:var(--accent);border-color:var(--line)}
@@ -141,6 +142,8 @@ body.dragging-todo,body.dragging-todo *{cursor:grabbing!important;user-select:no
 .imp.none{background:transparent;border:1.5px dashed var(--line)}
 .wslot .imp{width:15px;height:15px;line-height:15px;font-size:9px}
 .todo.hot .todo-t{font-weight:700}
+.ttime{font-size:11px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:5px;padding:0 4px;margin-right:5px;vertical-align:1px}
+.todo-add{min-height:30px}
 .todo.done .imp{opacity:.4}
 .imppick{position:fixed;z-index:120;display:flex;gap:6px;padding:8px;background:var(--bg);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.25)}
 .imp-opt{width:30px;height:30px;border-radius:50%;font-weight:800;color:#fff;font-size:13px;background:var(--soft)}
@@ -488,6 +491,7 @@ function apply(merged){
     if (canon(comb[k]) !== canon(local[k])) changed = true;
   }
   setLocal(comb); persist();
+  if (ensureEventTodos()) changed = true;
   if (changed) renderAllKeepFocus(); // 다른 기기에서 바뀐 게 있을 때만 다시 그림
   if (dirty) again = true;
 }
@@ -585,8 +589,47 @@ const eventsOn = key => live().filter(e => passes(e, 'cal') && e.date <= key && 
 function upsert(ev){
   ev.updatedAt = Date.now();
   const i = events.findIndex(e => e.id === ev.id);
+  const prev = i >= 0 ? events[i] : null;
   if (i >= 0) events[i] = ev; else events.push(ev);
-  dirty = true; persist(); render(); scheduleSave();
+  linkTodo(prev, ev);
+  dirty = true; persist(); keepFocus(render); scheduleSave();
+}
+
+/* ---------- 시간이 있는 일정 → 그 시간대 투두(중요도 5)로 자동 등록 ---------- */
+const slotForHour = h => h < 6 ? 'dawn' : h < 12 ? 's09' : h < 15 ? 's12' : h < 18 ? 's15' : h < 21 ? 's18' : 's21';
+function linkTodo(prev, ev){
+  const id = 'ev:' + ev.id;               // 기기마다 같은 id → 동기화해도 중복 안 생김
+  const i = todos.findIndex(t => t.id === id), cur = i >= 0 ? todos[i] : null;
+  const want = !ev.deleted && !ev.allDay && !!ev.start && !!ev.date;
+  if (!want) { // 일정 삭제 · 시각 지움 · 종일로 바뀜 → 연결된 투두도 삭제
+    if (cur && !cur.deleted) todos[i] = { id, date: cur.date, deleted: true, updatedAt: Date.now() };
+    return;
+  }
+  const slot = slotForHour(parseInt(ev.start, 10)), text = ev.title;
+  if (cur && !cur.deleted) { // 일정에서 바뀐 부분만 투두에 반영 (체크·중요도·직접 옮긴 위치는 유지)
+    const patch = {};
+    if (!prev || prev.title !== ev.title) patch.text = text;
+    if (!prev || prev.date !== ev.date || prev.start !== ev.start) { patch.date = ev.date; patch.slot = slot; }
+    if (Object.keys(patch).length) todos[i] = Object.assign({}, cur, patch, { updatedAt: Date.now() });
+    return;
+  }
+  // 투두를 직접 지웠다면, 일정의 날짜·시각이 바뀌기 전까지는 다시 만들지 않음
+  if (cur && cur.deleted && prev && !prev.deleted && prev.start === ev.start && prev.date === ev.date && !prev.allDay) return;
+  const t = { id, eventId: ev.id, date: ev.date, slot, text, imp: 5, done: false,
+              order: -1e9 + (parseInt(ev.start.replace(':', ''), 10) || 0), updatedAt: Date.now() }; // 칸 맨 위, 시간순
+  if (i >= 0) todos[i] = t; else todos.push(t);
+}
+// 이미 있던 시간 있는 일정(최근 60일 이후)도 투두로 채워 넣기 — 한 번 지운 건 다시 만들지 않음
+function ensureEventTodos(){
+  const cutoff = ymd(new Date(Date.now() - 60 * 864e5));
+  let added = false;
+  for (const e of events) {
+    if (e.deleted || e.allDay || !e.start || !e.date || e.date < cutoff) continue;
+    if (todos.some(t => t.id === 'ev:' + e.id)) continue;
+    linkTodo(null, e); added = true;
+  }
+  if (added) { dirty = true; persist(); scheduleSave(); }
+  return added;
 }
 function remove(id){
   const e = events.find(x => x.id === id); if (!e) return;
@@ -702,16 +745,14 @@ function renderEventList(){
 }
 
 /* ---------- 투두 ---------- */
-const SLOTS = [['s09', '09–12'], ['s12', '12–15'], ['s15', '15–18'], ['s18', '18–21'], ['s21', '21–24'], ['dawn', '새벽']];
+// s09는 기존 데이터 호환을 위해 id 유지 (표시는 06–12)
+const SLOTS = [['day', '하루 할 일'], ['s09', '06–12'], ['s12', '12–15'], ['s15', '15–18'], ['s18', '18–21'], ['s21', '21–24'], ['dawn', '새벽']];
 const IMP_COLORS = ['', '#94a3b8', '#0ea5e9', '#16a34a', '#f59e0b', '#e5484d']; // 중요도 1~5
 const liveTodos = () => todos.filter(t => !t.deleted);
 const todosOn = key => liveTodos().filter(t => t.date === key);
 const byOrder = (a, b) => (a.order || 0) - (b.order || 0);
 let openWeek = null; // 펼친 주의 시작 날짜 (주차 표)
-function slotForNow(){
-  const h = new Date().getHours();
-  return h < 9 ? 'dawn' : h < 12 ? 's09' : h < 15 ? 's12' : h < 18 ? 's15' : h < 21 ? 's18' : 's21';
-}
+function slotForNow(){ return slotForHour(new Date().getHours()); }
 // 다시 그려도 입력 중이던 '+ 할 일 추가' 칸의 포커스와 내용을 유지
 function keepFocus(fn){
   const a = document.activeElement; let k = null;
@@ -777,6 +818,7 @@ function todoItem(t){
   if (lv) imp.style.background = IMP_COLORS[lv];
   imp.title = '중요도'; imp.onclick = e => { e.stopPropagation(); openImpPick(imp, t); };
   const tx = el('span', 'todo-t', t.text);
+  if (t.eventId) { const ev = events.find(e => e.id === t.eventId && !e.deleted); if (ev && ev.start) tx.prepend(el('span', 'ttime', ev.start)); }
   tx.onclick = () => { if (Date.now() - justDragged > 400) startEdit(li); };
   const del = el('button', 'todo-x', '×'); del.title = '삭제';
   del.onclick = () => removeTodo(t.id);
@@ -817,7 +859,7 @@ function buildSlot(date, sid, label, compact){
   }
   const ul = el('ul', 'todos');
   items.forEach(t => ul.append(todoItem(t)));
-  const inp = el('input', 'todo-add'); inp.placeholder = compact ? '+' : '+ 할 일 추가'; inp.maxLength = 300;
+  const inp = el('input', 'todo-add'); inp.placeholder = compact ? '+' : ''; inp.setAttribute('aria-label', '할 일 추가'); inp.maxLength = 300;
   inp.setAttribute('enterkeyhint', 'done'); inp.autocomplete = 'off';
   inp.addEventListener('keydown', e => {
     if (e.key !== 'Enter' || e.isComposing) return; // 한글 조합 중 Enter 무시
@@ -842,13 +884,13 @@ function buildWeekBoard(keys){
   const today = ymd(new Date());
   keys.forEach(k => {
     const d = parseYmd(k);
-    const h = el('button', 'wb-day' + (k === today ? ' today' : '') + (k === selected ? ' sel' : '') + (d.getDay() === 0 ? ' sun' : d.getDay() === 6 ? ' sat' : ''),
-      `${WD[d.getDay()]} ${d.getMonth() + 1}.${pad(d.getDate())}`);
+    const h = el('button', 'wb-day' + (k === today ? ' today' : '') + (k === selected ? ' sel' : ''),
+      `${d.getMonth() + 1}/${d.getDate()} (${WD[d.getDay()]})`);
     h.onclick = () => { selected = k; dayTab = 'todos'; LS.set('cal.dayTab', dayTab); render(); };
     tbl.append(h);
   });
   for (const [sid, label] of SLOTS) {
-    tbl.append(el('div', 'wb-slot', label));
+    tbl.append(el('div', 'wb-slot', sid === 'day' ? '하루' : label));
     keys.forEach(k => tbl.append(buildSlot(k, sid, label, true)));
   }
   wrap.append(tbl);
@@ -856,7 +898,7 @@ function buildWeekBoard(keys){
 }
 function focusTodoInput(slot){
   if (dayTab !== 'todos') { dayTab = 'todos'; LS.set('cal.dayTab', dayTab); renderDay(); }
-  const s = slot || (selected === ymd(new Date()) ? slotForNow() : 's09');
+  const s = slot || (selected === ymd(new Date()) ? slotForNow() : 'day');
   const i = document.querySelector(`#todoPanel .slot[data-slot="${s}"] .todo-add`);
   if (i) { i.scrollIntoView({ block: 'center', behavior: 'smooth' }); i.focus({ preventScroll: true }); }
 }
@@ -1302,6 +1344,7 @@ function handleHash(){
 }
 window.addEventListener('hashchange', handleHash);
 
+ensureEventTodos();
 renderFolderBars(); setMode(mode, true); renderNotes(); handleHash(); idleStatus();
 if (configured()) sync(); else setTimeout(openSettings, 300);
 </script>
