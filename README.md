@@ -1,0 +1,70 @@
+# 내 캘린더 (GitHub 동기화 개인 캘린더)
+
+맥북과 안드로이드에서 같이 쓰는 개인 캘린더 PWA입니다.
+앱 화면은 GitHub Pages에서 열리고, 일정 데이터는 **비공개 저장소**의 `events.json`에 저장됩니다.
+
+## 구조
+
+| 저장소 | 공개 여부 | 내용 |
+|---|---|---|
+| `my-calendar` (앱) | 공개도 괜찮음 | 이 폴더의 파일들(화면 코드만 있고 데이터는 없음) |
+| `my-calendar-data` (데이터) | **반드시 Private** | `events.json` (앱이 자동 생성) |
+
+앱 주소를 다른 사람이 알아도 토큰이 없으면 빈 화면만 보입니다.
+
+## 설치 (한 번만 하면 됨)
+
+### 1. 데이터 저장소 만들기
+GitHub → New repository → 이름 `my-calendar-data` → **Private** 선택 → "Add a README file" 체크 → Create.
+
+### 2. 앱 저장소 만들고 Pages 켜기
+1. New repository → 이름 `my-calendar` → Create.
+2. "uploading an existing file"을 눌러 이 폴더의 파일 6개(index.html, sw.js, manifest.webmanifest, icon-192.png, icon-512.png, README.md)를 업로드하고 Commit.
+3. Settings → Pages → Source: **Deploy from a branch**, Branch: `main` / `(root)` → Save.
+4. 1~2분 뒤 `https://<사용자명>.github.io/my-calendar/` 에서 앱이 열립니다.
+
+> 무료 계정은 Pages를 쓰려면 앱 저장소가 Public이어야 합니다. GitHub Pro(학생은 GitHub Student Developer Pack으로 무료)라면 앱 저장소도 Private으로 둘 수 있습니다. 단, 그래도 Pages 주소 자체는 누구나 접속할 수 있습니다.
+> **데이터 파일을 앱 저장소에 넣지 마세요.** Pages가 그 파일까지 공개 주소로 내보냅니다.
+
+### 3. 기기별 토큰 만들기 (맥용 1개, 폰용 1개 권장)
+GitHub → 프로필 사진 → Settings → Developer settings → Personal access tokens → **Fine-grained tokens** → Generate new token
+
+- Token name: `calendar-mac` (폰용은 `calendar-phone`)
+- Expiration: 원하는 기간(만료되면 새로 발급해서 앱 설정에 다시 입력)
+- Repository access: **Only select repositories** → `my-calendar-data` 하나만
+- Permissions → Repository permissions → **Contents: Read and write** (Metadata: Read-only는 자동)
+- Generate → `github_pat_...`로 시작하는 토큰 복사 (이 화면을 벗어나면 다시 볼 수 없음)
+
+폰용 토큰은 폰 브라우저에서 GitHub에 로그인해서 직접 발급하면 복사·붙여넣기가 편합니다.
+
+### 4. 앱에 연결
+앱을 열면 설정 창이 뜹니다(나중에 ⚙︎ 버튼으로도 열 수 있음).
+- GitHub 사용자명 / 데이터 저장소(`my-calendar-data`) / 토큰 입력 → **연결 테스트** → 저장
+- 저장소가 Public이면 경고가 뜨고 저장되지 않습니다.
+
+### 5. 앱으로 설치
+- **안드로이드 (크롬)**: 앱 주소 열기 → ⋮ 메뉴 → "앱 설치" 또는 "홈 화면에 추가"
+- **맥 (크롬)**: 주소창 오른쪽의 설치 아이콘 클릭
+- **맥 (사파리, Sonoma 이상)**: 메뉴 파일 → "Dock에 추가"
+
+## 사용법
+- 날짜 클릭 → 오른쪽(폰은 아래)에 그날 일정 표시 / 더블클릭 → 바로 새 일정
+- `+ 일정` (폰은 오른쪽 아래 + 버튼)으로 추가, 일정을 누르면 수정·삭제
+- 여러 날 일정: 종료일 입력 / 종일 일정: "종일" 체크
+- 맥 단축키: `←` `→` 이전·다음 달, `t` 오늘, `n` 새 일정
+- 폰: 달력을 좌우로 스와이프하면 달 이동
+
+## 동기화 방식
+- 일정을 저장하면 약 1초 뒤 자동으로 GitHub에 커밋됩니다.
+- 앱을 다시 열 때, 화면에 돌아올 때, 열려 있는 동안 1분마다 자동으로 동기화합니다. ⟳ 버튼으로 즉시 동기화할 수 있습니다.
+- 오프라인에서 수정한 내용은 기기에 보관했다가 연결되면 올립니다.
+- 두 기기에서 동시에 수정해도 일정별로 더 최근에 수정한 쪽을 기준으로 합쳐지므로 데이터가 사라지지 않습니다.
+- `my-calendar-data` 저장소의 커밋 기록이 그대로 변경 이력(백업)이 됩니다.
+
+## 보안 수칙
+- 기기를 잃어버리면 GitHub → Fine-grained tokens에서 **그 기기의 토큰만 삭제**하면 즉시 접근이 차단됩니다.
+- 공용 컴퓨터에서 썼다면 ⚙︎ → "이 기기 초기화"로 토큰과 캐시를 지우세요.
+- 토큰은 데이터 저장소 하나에만 권한이 있으므로, 유출되더라도 다른 저장소나 계정에는 영향이 없습니다.
+
+## 앱 수정하기
+`index.html`을 고쳐서 앱 저장소에 다시 올리면 됩니다. 앱이 바로 바뀌지 않으면 한 번 새로고침하세요.
