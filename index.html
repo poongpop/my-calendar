@@ -90,9 +90,16 @@ aside{width:360px;border-left:1px solid var(--line);padding:14px 16px;background
 .todo{display:flex;align-items:flex-start;gap:8px;padding:5px 2px;border-radius:8px;cursor:grab;
   user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 .todo:hover{background:var(--bg)}
-.todo input[type=checkbox]{width:18px;height:18px;flex:none;accent-color:var(--accent);margin:1px 0 0;padding:0}
 .todo-t{flex:1;min-width:0;word-break:break-word;font-size:14px;line-height:1.4;cursor:text}
 .todo.done .todo-t{text-decoration:line-through;color:var(--muted)}
+.todo.fail .todo-t{text-decoration:line-through;text-decoration-color:var(--danger);color:var(--muted)}
+/* 상태 버튼: 없음 → 성공(✓) → 실패(✕) */
+.tstat{flex:none;width:19px;height:19px;border-radius:50%;border:1.5px solid var(--muted);color:#fff;font-size:11px;font-weight:800;
+  line-height:16px;text-align:center;margin-top:1px;padding:0;background:transparent}
+.tstat.done{background:#16a34a;border-color:#16a34a}
+.tstat.fail{background:var(--danger);border-color:var(--danger)}
+.wslot .tstat{width:16px;height:16px;line-height:13px;font-size:9.5px}
+.slot-c .f{color:var(--danger);margin-left:6px}
 .todo-x{flex:none;width:22px;height:22px;border-radius:6px;color:var(--muted);opacity:0;font-size:16px;line-height:1}
 .todo:hover .todo-x{opacity:1}
 @media (hover:none){.todo-x{opacity:.55}}
@@ -133,22 +140,11 @@ body.dragging-todo,body.dragging-todo *{cursor:grabbing!important;user-select:no
 .slot.wslot.over{outline-color:var(--accent);border-color:var(--line)}
 .wslot .todo{padding:3px 0;gap:5px}
 .wslot .todo-t{font-size:12.5px}
-.wslot .todo input[type=checkbox]{width:15px;height:15px}
 .wslot .todo-add{font-size:12px;padding:3px 0;opacity:.6}
 @media (hover:hover){.wslot .todo-x{display:none}.wslot .todo:hover .todo-x{display:block}}
 .wslot .todo-add:focus{opacity:1}
-/* 중요도 */
-.imp{flex:none;width:18px;height:18px;border-radius:50%;font-size:10px;font-weight:800;color:#fff;line-height:18px;text-align:center;margin-top:1px}
-.imp.none{background:transparent;border:1.5px dashed var(--line)}
-.wslot .imp{width:15px;height:15px;line-height:15px;font-size:9px}
-.todo.hot .todo-t{font-weight:700}
 .ttime{font-size:11px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:5px;padding:0 4px;margin-right:5px;vertical-align:1px}
 .todo-add{min-height:30px}
-.todo.done .imp{opacity:.4}
-.imppick{position:fixed;z-index:120;display:flex;gap:6px;padding:8px;background:var(--bg);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.25)}
-.imp-opt{width:30px;height:30px;border-radius:50%;font-weight:800;color:#fff;font-size:13px;background:var(--soft)}
-.imp-opt:first-child{color:var(--muted)}
-.imp-opt.on{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--fg)}
 .dayhead h2{font-size:16px;margin:0}
 .add{background:var(--accent);color:#fff;padding:8px 14px;border-radius:10px;font-weight:600;font-size:14px}
 ul.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
@@ -615,7 +611,7 @@ function linkTodo(prev, ev){
   }
   // 투두를 직접 지웠다면, 일정의 날짜·시각이 바뀌기 전까지는 다시 만들지 않음
   if (cur && cur.deleted && prev && !prev.deleted && prev.start === ev.start && prev.date === ev.date && !prev.allDay) return;
-  const t = { id, eventId: ev.id, date: ev.date, slot, text, imp: 5, done: false,
+  const t = { id, eventId: ev.id, date: ev.date, slot, text, status: '', done: false,
               order: -1e9 + (parseInt(ev.start.replace(':', ''), 10) || 0), updatedAt: Date.now() }; // 칸 맨 위, 시간순
   if (i >= 0) todos[i] = t; else todos.push(t);
 }
@@ -665,7 +661,7 @@ function renderGrid(){
     cell.append(el('span', 'num', d.getDate()));
     const tds = todosOn(key);
     if (tds.length) { // 투두 개수 배지: 맥은 '완료/전체', 폰은 남은 개수
-      const left = tds.filter(t => !t.done).length;
+      const left = tds.filter(t => !tstatus(t)).length;
       const b = el('span', 'tcount' + (left ? '' : ' all'));
       b.append(el('span', 'f', `${tds.length - left}/${tds.length}`), el('span', 's', left ? String(left) : '✓'));
       cell.append(b);
@@ -708,7 +704,7 @@ function renderGrid(){
    // 주차 라벨: 누르면 그 주의 투두 표가 아래로 펼쳐짐
    const wl = el('button', 'wlabel' + (openWeek === keys[0] ? ' on' : ''));
    wl.append(el('span', 'wn', String(w + 1)), el('span', 'wt', '주차'));
-   const wleft = keys.reduce((n, k) => n + todosOn(k).filter(t => !t.done).length, 0);
+   const wleft = keys.reduce((n, k) => n + todosOn(k).filter(t => !tstatus(t)).length, 0);
    if (wleft) wl.append(el('span', 'wc', String(wleft)));
    wl.title = `${w + 1}주차 투두 보기`;
    wl.onclick = () => { openWeek = openWeek === keys[0] ? null : keys[0]; renderGrid(); };
@@ -747,7 +743,9 @@ function renderEventList(){
 /* ---------- 투두 ---------- */
 // s09는 기존 데이터 호환을 위해 id 유지 (표시는 06–12)
 const SLOTS = [['day', '하루 할 일'], ['s09', '06–12'], ['s12', '12–15'], ['s15', '15–18'], ['s18', '18–21'], ['s21', '21–24'], ['dawn', '새벽']];
-const IMP_COLORS = ['', '#94a3b8', '#0ea5e9', '#16a34a', '#f59e0b', '#e5484d']; // 중요도 1~5
+// 투두 상태: '' (안 함) | 'done' (성공) | 'fail' (실패). 예전 버전의 done:true 도 성공으로 읽음
+const tstatus = t => t.status || (t.done ? 'done' : '');
+const NEXT_STATUS = { '': 'done', done: 'fail', fail: '' };
 const liveTodos = () => todos.filter(t => !t.deleted);
 const todosOn = key => liveTodos().filter(t => t.date === key);
 const byOrder = (a, b) => (a.order || 0) - (b.order || 0);
@@ -767,8 +765,8 @@ function keepFocus(fn){
   }
 }
 function saveTodos(){ dirty = true; persist(); keepFocus(render); scheduleSave(); }
-function addTodo(date, slot, text, imp){
-  const t = { id: uid(), date, slot, text, imp: imp || 0, done: false, order: Date.now(), updatedAt: Date.now() };
+function addTodo(date, slot, text){
+  const t = { id: uid(), date, slot, text, status: '', done: false, order: Date.now(), updatedAt: Date.now() };
   todos.push(t); saveTodos(); return t;
 }
 function updateTodo(id, patch){
@@ -781,48 +779,20 @@ function removeTodo(id){
   todos[i] = { id, date: todos[i].date, deleted: true, updatedAt: Date.now() };
   saveTodos();
 }
-// "!!! 마감" → 중요도 3
-function parseImp(text){
-  const m = text.match(/^(!{1,5})\s*(.*)$/);
-  return m && m[2] ? { imp: m[1].length, text: m[2] } : { imp: 0, text };
-}
-
-/* 중요도 고르기 팝업 */
-let impPick = null;
-function closeImpPick(){ if (impPick) { impPick.remove(); impPick = null; } }
-function openImpPick(btn, t){
-  closeImpPick();
-  const p = el('div', 'imppick');
-  for (let lv = 0; lv <= 5; lv++) {
-    const b = el('button', 'imp-opt' + ((t.imp || 0) === lv ? ' on' : ''), lv ? String(lv) : '–');
-    if (lv) b.style.background = IMP_COLORS[lv];
-    b.title = lv ? `중요도 ${lv}` : '중요도 없음';
-    b.onclick = e => { e.stopPropagation(); closeImpPick(); updateTodo(t.id, { imp: lv }); };
-    p.append(b);
-  }
-  document.body.append(p);
-  const r = btn.getBoundingClientRect(), w = p.offsetWidth;
-  p.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left - 4)) + 'px';
-  p.style.top = (r.bottom + 6 + p.offsetHeight > window.innerHeight ? r.top - p.offsetHeight - 6 : r.bottom + 6) + 'px';
-  impPick = p;
-}
-document.addEventListener('pointerdown', e => { if (impPick && !e.target.closest('.imppick')) closeImpPick(); }, true);
-
 let justDragged = 0;
 function todoItem(t){
-  const lv = t.imp || 0;
-  const li = el('li', 'todo' + (t.done ? ' done' : '') + (lv >= 4 ? ' hot' : '')); li.dataset.id = t.id;
-  const cb = el('input'); cb.type = 'checkbox'; cb.checked = !!t.done; cb.setAttribute('aria-label', '완료');
-  cb.onchange = () => updateTodo(t.id, { done: cb.checked });
-  const imp = el('button', 'imp' + (lv ? '' : ' none'), lv ? String(lv) : '');
-  if (lv) imp.style.background = IMP_COLORS[lv];
-  imp.title = '중요도'; imp.onclick = e => { e.stopPropagation(); openImpPick(imp, t); };
+  const st = tstatus(t);
+  const li = el('li', 'todo' + (st ? ' ' + st : '')); li.dataset.id = t.id;
+  const sb = el('button', 'tstat' + (st ? ' ' + st : ''), st === 'done' ? '✓' : st === 'fail' ? '✕' : '');
+  sb.title = st === 'done' ? '성공 (누르면 실패로)' : st === 'fail' ? '실패 (누르면 해제)' : '누르면 성공';
+  sb.setAttribute('aria-label', '상태: ' + (st === 'done' ? '성공' : st === 'fail' ? '실패' : '안 함'));
+  sb.onclick = e => { e.stopPropagation(); const n = NEXT_STATUS[st]; updateTodo(t.id, { status: n, done: n === 'done' }); };
   const tx = el('span', 'todo-t', t.text);
   if (t.eventId) { const ev = events.find(e => e.id === t.eventId && !e.deleted); if (ev && ev.start) tx.prepend(el('span', 'ttime', ev.start)); }
   tx.onclick = () => { if (Date.now() - justDragged > 400) startEdit(li); };
   const del = el('button', 'todo-x', '×'); del.title = '삭제';
   del.onclick = () => removeTodo(t.id);
-  li.append(cb, imp, tx, del);
+  li.append(sb, tx, del);
   li.addEventListener('contextmenu', e => e.preventDefault());
   attachDrag(li);
   return li;
@@ -853,8 +823,10 @@ function buildSlot(date, sid, label, compact){
   const items = todosOn(date).filter(t => (t.slot || 's09') === sid).sort(byOrder);
   const sec = el('section', 'slot' + (compact ? ' wslot' : '')); sec.dataset.slot = sid; sec.dataset.date = date;
   if (!compact) {
-    const done = items.filter(t => t.done).length;
-    const head = el('div', 'slot-h'); head.append(el('span', null, label), el('span', 'slot-c', items.length ? `${done}/${items.length}` : ''));
+    const ok = items.filter(t => tstatus(t) === 'done').length, ng = items.filter(t => tstatus(t) === 'fail').length;
+    const cnt = el('span', 'slot-c', items.length ? `${ok}/${items.length}` : '');
+    if (ng) cnt.append(el('span', 'f', `실패 ${ng}`));
+    const head = el('div', 'slot-h'); head.append(el('span', null, label), cnt);
     sec.append(head);
   }
   const ul = el('ul', 'todos');
@@ -865,9 +837,8 @@ function buildSlot(date, sid, label, compact){
     if (e.key !== 'Enter' || e.isComposing) return; // 한글 조합 중 Enter 무시
     e.preventDefault();
     const raw = inp.value.trim(); if (!raw) return;
-    const { imp, text } = parseImp(raw);
     inp.value = '';                // 먼저 비우고 추가 → 다시 그린 뒤에도 같은 칸에 포커스 유지
-    addTodo(date, sid, text, imp);
+    addTodo(date, sid, raw);
   });
   sec.append(ul, inp);
   return sec;
@@ -940,7 +911,6 @@ function attachDrag(li){
   }, { passive: true });
 }
 function startDrag(li, x, y){
-  closeImpPick();
   const r = li.getBoundingClientRect();
   const g = li.cloneNode(true); g.classList.add('ghost'); g.classList.remove('dragging-src');
   g.style.width = Math.max(r.width, 160) + 'px'; document.body.append(g);
