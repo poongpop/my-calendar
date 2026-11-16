@@ -93,12 +93,15 @@ aside{width:360px;border-left:1px solid var(--line);padding:14px 16px;background
 .todo-t{flex:1;min-width:0;word-break:break-word;font-size:14px;line-height:1.4;cursor:text}
 .todo.done .todo-t{text-decoration:line-through;color:var(--muted)}
 .todo.fail .todo-t{text-decoration:line-through;text-decoration-color:var(--danger);color:var(--muted)}
-/* 상태 버튼: 없음 → 성공(✓) → 실패(✕) */
-.tstat{flex:none;width:19px;height:19px;border-radius:50%;border:1.5px solid var(--muted);color:#fff;font-size:11px;font-weight:800;
-  line-height:16px;text-align:center;margin-top:1px;padding:0;background:transparent}
-.tstat.done{background:#16a34a;border-color:#16a34a}
-.tstat.fail{background:var(--danger);border-color:var(--danger)}
-.wslot .tstat{width:16px;height:16px;line-height:13px;font-size:9.5px}
+/* 상태 버튼: ✓ 성공 / ✕ 실패 (켜진 버튼을 다시 누르면 해제) */
+.tbtns{flex:none;display:flex;gap:4px;margin-top:1px}
+.tbtn{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--line);color:var(--muted);background:transparent;
+  font-size:10.5px;font-weight:800;line-height:17px;text-align:center;padding:0}
+.tbtn:hover{border-color:var(--muted)}
+.tbtn.tok.on{background:#16a34a;border-color:#16a34a;color:#fff}
+.tbtn.tng.on{background:var(--danger);border-color:var(--danger);color:#fff}
+.wslot .tbtns{gap:3px}
+.wslot .tbtn{width:16px;height:16px;line-height:13px;font-size:8.5px}
 .slot-c .f{color:var(--danger);margin-left:6px}
 .todo-x{flex:none;width:22px;height:22px;border-radius:6px;color:var(--muted);opacity:0;font-size:16px;line-height:1}
 .todo:hover .todo-x{opacity:1}
@@ -745,7 +748,6 @@ function renderEventList(){
 const SLOTS = [['day', '하루 할 일'], ['s09', '06–12'], ['s12', '12–15'], ['s15', '15–18'], ['s18', '18–21'], ['s21', '21–24'], ['dawn', '새벽']];
 // 투두 상태: '' (안 함) | 'done' (성공) | 'fail' (실패). 예전 버전의 done:true 도 성공으로 읽음
 const tstatus = t => t.status || (t.done ? 'done' : '');
-const NEXT_STATUS = { '': 'done', done: 'fail', fail: '' };
 const liveTodos = () => todos.filter(t => !t.deleted);
 const todosOn = key => liveTodos().filter(t => t.date === key);
 const byOrder = (a, b) => (a.order || 0) - (b.order || 0);
@@ -783,10 +785,14 @@ let justDragged = 0;
 function todoItem(t){
   const st = tstatus(t);
   const li = el('li', 'todo' + (st ? ' ' + st : '')); li.dataset.id = t.id;
-  const sb = el('button', 'tstat' + (st ? ' ' + st : ''), st === 'done' ? '✓' : st === 'fail' ? '✕' : '');
-  sb.title = st === 'done' ? '성공 (누르면 실패로)' : st === 'fail' ? '실패 (누르면 해제)' : '누르면 성공';
-  sb.setAttribute('aria-label', '상태: ' + (st === 'done' ? '성공' : st === 'fail' ? '실패' : '안 함'));
-  sb.onclick = e => { e.stopPropagation(); const n = NEXT_STATUS[st]; updateTodo(t.id, { status: n, done: n === 'done' }); };
+  const setSt = n => updateTodo(t.id, { status: n, done: n === 'done' });
+  const ok = el('button', 'tbtn tok' + (st === 'done' ? ' on' : ''), '✓');
+  ok.title = st === 'done' ? '성공 해제' : '성공'; ok.setAttribute('aria-label', ok.title);
+  ok.onclick = e => { e.stopPropagation(); setSt(st === 'done' ? '' : 'done'); };
+  const ng = el('button', 'tbtn tng' + (st === 'fail' ? ' on' : ''), '✕');
+  ng.title = st === 'fail' ? '실패 해제' : '실패'; ng.setAttribute('aria-label', ng.title);
+  ng.onclick = e => { e.stopPropagation(); setSt(st === 'fail' ? '' : 'fail'); };
+  const sb = el('span', 'tbtns'); sb.append(ok, ng);
   const tx = el('span', 'todo-t', t.text);
   if (t.eventId) { const ev = events.find(e => e.id === t.eventId && !e.deleted); if (ev && ev.start) tx.prepend(el('span', 'ttime', ev.start)); }
   tx.onclick = () => { if (Date.now() - justDragged > 400) startEdit(li); };
