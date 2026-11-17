@@ -85,6 +85,17 @@ aside{width:360px;border-left:1px solid var(--line);padding:14px 16px;background
 #todoPanel{display:flex;flex-direction:column;gap:8px}
 .slot{background:var(--soft);border-radius:12px;padding:8px 10px 4px;border:2px solid transparent}
 .slot.over{border-color:var(--accent)}
+.evs{list-style:none;margin:0 0 2px;padding:0}
+.evrow{display:flex;align-items:center;gap:8px;padding:5px 6px;margin:2px 0;border-radius:8px;cursor:pointer;
+  background:color-mix(in srgb,var(--ec) 12%,var(--bg))}
+.evrow:hover{background:color-mix(in srgb,var(--ec) 20%,var(--bg))}
+.evbar{flex:none;width:4px;align-self:stretch;min-height:16px;border-radius:2px;background:var(--ec)}
+.evt{flex:1;min-width:0;font-size:14px;font-weight:600;line-height:1.35;word-break:break-word}
+.evm{flex:none;font-size:11px;color:var(--muted)}
+.evtime{flex:none;font-size:12px;font-weight:700;color:var(--ec)}
+.wslot .evtime{font-size:10.5px}
+.wslot .evrow{padding:3px 4px;gap:5px;margin:1px 0}
+.wslot .evt{font-size:12px}
 .nextday{display:none;align-items:center;justify-content:center;min-height:56px;border:2px dashed var(--line);border-radius:12px;
   color:var(--muted);font-size:13px;font-weight:600;text-align:center;padding:0 10px}
 body.dragging-todo .nextday{display:flex}
@@ -262,7 +273,6 @@ textarea{min-height:70px;resize:vertical}
   </section>
   <aside>
     <div class="dayhead"><h2 id="dayTitle"></h2>
-      <div class="tabs small" id="dayTabs"><button data-t="events">일정</button><button data-t="todos">투두</button></div>
       <button class="add" id="addBtn">+ 일정</button></div>
     <ul class="list" id="dayList"></ul>
     <div id="todoPanel"></div>
@@ -607,41 +617,21 @@ function upsert(ev){
   dirty = true; persist(); keepFocus(render); scheduleSave();
 }
 
-/* ---------- 시간이 있는 일정 → 그 시간대 투두(중요도 5)로 자동 등록 ---------- */
+/* ---------- 일정은 투두 시간대 칸에 넣지 않음 (하루 할 일 칸의 일정 목록에만 표시) ---------- */
 const slotForHour = h => h < 6 ? 'dawn' : h < 12 ? 's09' : h < 15 ? 's12' : h < 18 ? 's15' : h < 21 ? 's18' : 's21';
+// 예전 버전이 일정마다 자동으로 만든 '연결 투두'(id: ev:…)가 남아 있으면 정리
 function linkTodo(prev, ev){
-  const id = 'ev:' + ev.id;               // 기기마다 같은 id → 동기화해도 중복 안 생김
-  const i = todos.findIndex(t => t.id === id), cur = i >= 0 ? todos[i] : null;
-  const want = !ev.deleted && !ev.allDay && !!ev.start && !!ev.date;
-  if (!want) { // 일정 삭제 · 시각 지움 · 종일로 바뀜 → 연결된 투두도 삭제
-    if (cur && !cur.deleted) todos[i] = { id, date: cur.date, deleted: true, updatedAt: Date.now() };
-    return;
-  }
-  const slot = slotForHour(parseInt(ev.start, 10)), text = ev.title;
-  if (cur && !cur.deleted) { // 일정에서 바뀐 부분만 투두에 반영 (체크·중요도·직접 옮긴 위치는 유지)
-    const patch = {};
-    if (!prev || prev.title !== ev.title) patch.text = text;
-    if (!prev || prev.date !== ev.date || prev.start !== ev.start) { patch.date = ev.date; patch.slot = slot; }
-    if (Object.keys(patch).length) todos[i] = Object.assign({}, cur, patch, { updatedAt: Date.now() });
-    return;
-  }
-  // 투두를 직접 지웠다면, 일정의 날짜·시각이 바뀌기 전까지는 다시 만들지 않음
-  if (cur && cur.deleted && prev && !prev.deleted && prev.start === ev.start && prev.date === ev.date && !prev.allDay) return;
-  const t = { id, eventId: ev.id, date: ev.date, slot, text, status: '', done: false,
-              order: -1e9 + (parseInt(ev.start.replace(':', ''), 10) || 0), updatedAt: Date.now() }; // 칸 맨 위, 시간순
-  if (i >= 0) todos[i] = t; else todos.push(t);
+  const i = todos.findIndex(t => t.id === 'ev:' + ev.id);
+  if (i >= 0 && !todos[i].deleted) todos[i] = { id: todos[i].id, date: todos[i].date, deleted: true, updatedAt: Date.now() };
 }
-// 이미 있던 시간 있는 일정(최근 60일 이후)도 투두로 채워 넣기 — 한 번 지운 건 다시 만들지 않음
 function ensureEventTodos(){
-  const cutoff = ymd(new Date(Date.now() - 60 * 864e5));
-  let added = false;
-  for (const e of events) {
-    if (e.deleted || e.allDay || !e.start || !e.date || e.date < cutoff) continue;
-    if (todos.some(t => t.id === 'ev:' + e.id)) continue;
-    linkTodo(null, e); added = true;
-  }
-  if (added) { dirty = true; persist(); scheduleSave(); }
-  return added;
+  let removed = false;
+  todos = todos.map(t => {
+    if (!t.deleted && (t.eventId || String(t.id).startsWith('ev:'))) { removed = true; return { id: t.id, date: t.date, deleted: true, updatedAt: Date.now() }; }
+    return t;
+  });
+  if (removed) { dirty = true; persist(); scheduleSave(); }
+  return removed;
 }
 function remove(id){
   const e = events.find(x => x.id === id); if (!e) return;
@@ -732,11 +722,9 @@ function renderGrid(){
 function renderDay(){
   const d = parseYmd(selected);
   $('#dayTitle').textContent = `${d.getMonth() + 1}월 ${d.getDate()}일 (${WD[d.getDay()]})`;
-  document.querySelectorAll('#dayTabs button').forEach(b => b.classList.toggle('on', b.dataset.t === dayTab));
-  const todoMode = dayTab === 'todos';
-  $('#dayList').style.display = todoMode ? 'none' : ''; $('#todoPanel').style.display = todoMode ? '' : 'none';
-  $('#addBtn').style.display = todoMode ? 'none' : '';
-  if (todoMode) renderTodos(); else renderEventList();
+  // 일정과 투두를 한 패널에: 모든 일정은 '하루 할 일' 맨 위 일정 목록에, 시간대 칸은 투두만
+  $('#dayList').style.display = 'none';
+  renderTodos();
 }
 function renderEventList(){
   const ul = $('#dayList'); ul.replaceChildren();
@@ -864,6 +852,25 @@ function buildSlot(date, sid, label, compact){
     inp.value = '';                // 먼저 비우고 추가 → 다시 그린 뒤에도 같은 칸에 포커스 유지
     addTodo(date, sid, raw);
   });
+  if (sid === 'day') { // 그날의 모든 일정(시간 있는 일정 포함)을 하루 할 일 맨 위에
+    const evs = eventsOn(date); // 종일 → 시간순
+    if (evs.length) {
+      const eul = el('ul', 'evs');
+      for (const e of evs) {
+        const li = el('li', 'evrow'); li.style.setProperty('--ec', e.color || COLORS[0]);
+        li.append(el('span', 'evbar'));
+        if (!e.allDay && e.start) li.append(el('span', 'evtime', compact ? e.start : [e.start, e.end].filter(Boolean).join('–')));
+        const tt = el('span', 'evt', e.title); li.append(tt);
+        if (!compact && e.endDate && e.endDate !== e.date) {
+          const a = parseYmd(e.date), b = parseYmd(e.endDate);
+          li.append(el('span', 'evm', `${a.getMonth() + 1}/${a.getDate()}~${b.getMonth() + 1}/${b.getDate()}`));
+        }
+        li.title = '일정 편집'; li.onclick = () => openEvent(e);
+        eul.append(li);
+      }
+      sec.append(eul);
+    }
+  }
   sec.append(ul, inp);
   return sec;
 }
@@ -901,7 +908,6 @@ function focusTodoInput(slot){
   const i = document.querySelector(`#todoPanel .slot[data-slot="${s}"] .todo-add`);
   if (i) { i.scrollIntoView({ block: 'center', behavior: 'smooth' }); i.focus({ preventScroll: true }); }
 }
-document.querySelectorAll('#dayTabs button').forEach(b => b.onclick = () => { dayTab = b.dataset.t; LS.set('cal.dayTab', dayTab); renderDay(); });
 
 /* ---------- 투두 끌어서 옮기기 (마우스: 끌기 / 폰: 꾹 눌러 집기) ---------- */
 let drag = null;
@@ -1308,13 +1314,13 @@ $('#prev').onclick = () => shiftMonth(-1);
 $('#next').onclick = () => shiftMonth(1);
 $('#todayBtn').onclick = () => { const t = new Date(); view = new Date(t.getFullYear(), t.getMonth(), 1); selected = ymd(t); render(); };
 $('#addBtn').onclick = () => openEvent(null, selected);
-$('#fab').onclick = () => mode === 'notes' ? openNote(null) : dayTab === 'todos' ? focusTodoInput() : openEvent(null, selected);
+$('#fab').onclick = () => mode === 'notes' ? openNote(null) : openEvent(null, selected);
 $('#settingsBtn').onclick = openSettings;
 $('#syncBtn').onclick = sync;
 document.addEventListener('keydown', e => {
   if (document.querySelector('dialog[open]') || e.metaKey || e.ctrlKey || e.altKey || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
   if (e.key === 'm') setMode(mode === 'notes' ? 'cal' : 'notes');
-  else if (e.key === 'n') { e.preventDefault(); mode === 'notes' ? openNote(null) : dayTab === 'todos' ? focusTodoInput() : openEvent(null, selected); }
+  else if (e.key === 'n') { e.preventDefault(); mode === 'notes' ? openNote(null) : openEvent(null, selected); }
   else if (mode === 'notes') return;
   else if (e.key in ARROW_STEP) { e.preventDefault(); moveSelected(ARROW_STEP[e.key]); }
   else if (e.key === 'PageUp') { e.preventDefault(); shiftMonth(-1); }
