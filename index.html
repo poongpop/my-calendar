@@ -66,6 +66,7 @@ main{display:flex;gap:0;min-height:calc(100% - 46px)}
 .cell.sun .num{color:var(--sun)}.cell.sat .num{color:var(--sat)}
 .cell.other{opacity:.38}
 .cell.today .num{background:var(--accent);color:#fff}
+.cell.today{background:color-mix(in srgb,var(--accent) 6%,transparent)}
 .cell.sel{background:var(--accent-soft)}
 .ebar{z-index:1;pointer-events:none;height:var(--lh);line-height:var(--lh);font-size:11px;color:#fff;
   padding:0 6px;margin:0 3px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
@@ -84,6 +85,10 @@ aside{width:360px;border-left:1px solid var(--line);padding:14px 16px;background
 #todoPanel{display:flex;flex-direction:column;gap:8px}
 .slot{background:var(--soft);border-radius:12px;padding:8px 10px 4px;border:2px solid transparent}
 .slot.over{border-color:var(--accent)}
+.nextday{display:none;align-items:center;justify-content:center;min-height:56px;border:2px dashed var(--line);border-radius:12px;
+  color:var(--muted);font-size:13px;font-weight:600;text-align:center;padding:0 10px}
+body.dragging-todo .nextday{display:flex}
+.nextday.over{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
 .slot-h{display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:2px}
 .slot-c{font-weight:600}
 .todos{list-style:none;margin:0;padding:0}
@@ -100,8 +105,16 @@ aside{width:360px;border-left:1px solid var(--line);padding:14px 16px;background
 .tbtn:hover{border-color:var(--muted)}
 .tbtn.tok.on{background:#16a34a;border-color:#16a34a;color:#fff}
 .tbtn.tng.on{background:var(--danger);border-color:var(--danger);color:#fff}
+.tbtn.tpt.on{background:#f59e0b;border-color:#f59e0b;color:#fff}
+.tbtn.tpt{display:grid;place-items:center}
+.tbtn.tpt::before{content:'';width:9px;height:9px;border-radius:50%;box-sizing:border-box;border:1.5px solid currentColor;
+  background:linear-gradient(90deg,currentColor 50%,transparent 50%)}
+.wslot .tbtn.tpt::before{width:7px;height:7px;border-width:1.2px}
+.todo.part .todo-t{text-decoration:underline;text-decoration-color:#f59e0b;text-decoration-thickness:2px;text-underline-offset:3px}
+.slot-c .p{color:#d97706;margin-left:6px}
 .wslot .tbtns{gap:3px}
-.wslot .tbtn{width:16px;height:16px;line-height:13px;font-size:8.5px}
+.wslot .tbtn{width:15px;height:15px;line-height:12px;font-size:8px}
+.wslot .tbtns{gap:2px}
 .slot-c .f{color:var(--danger);margin-left:6px}
 .todo-x{flex:none;width:22px;height:22px;border-radius:6px;color:var(--muted);opacity:0;font-size:16px;line-height:1}
 .todo:hover .todo-x{opacity:1}
@@ -136,7 +149,7 @@ body.dragging-todo,body.dragging-todo *{cursor:grabbing!important;user-select:no
 .wb-day{font-size:12px;font-weight:600;padding:7px 4px;background:var(--soft);color:var(--fg);
   border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
 .wb-day:hover{background:var(--accent-soft)}
-.wb-day.today{color:var(--accent);font-weight:800}
+.wb-day.today{color:var(--accent);font-weight:800;background:color-mix(in srgb,var(--accent) 8%,var(--soft))}
 .wb-day.sel{background:var(--accent-soft)}
 .slot.wslot{border-radius:0;border:0;border-right:1px solid var(--line);border-bottom:1px solid var(--line);
   background:var(--bg);padding:4px 6px 2px;min-height:70px;outline:2px solid transparent;outline-offset:-2px}
@@ -792,7 +805,10 @@ function todoItem(t){
   const ng = el('button', 'tbtn tng' + (st === 'fail' ? ' on' : ''), '✕');
   ng.title = st === 'fail' ? '실패 해제' : '실패'; ng.setAttribute('aria-label', ng.title);
   ng.onclick = e => { e.stopPropagation(); setSt(st === 'fail' ? '' : 'fail'); };
-  const sb = el('span', 'tbtns'); sb.append(ok, ng);
+  const pt = el('button', 'tbtn tpt' + (st === 'part' ? ' on' : ''));
+  pt.title = st === 'part' ? '진행 해제' : '진행했지만 못 끝냄'; pt.setAttribute('aria-label', pt.title);
+  pt.onclick = e => { e.stopPropagation(); setSt(st === 'part' ? '' : 'part'); };
+  const sb = el('span', 'tbtns'); sb.append(ok, pt, ng);
   const tx = el('span', 'todo-t', t.text);
   if (t.eventId) { const ev = events.find(e => e.id === t.eventId && !e.deleted); if (ev && ev.start) tx.prepend(el('span', 'ttime', ev.start)); }
   tx.onclick = () => { if (Date.now() - justDragged > 400) startEdit(li); };
@@ -831,6 +847,8 @@ function buildSlot(date, sid, label, compact){
   if (!compact) {
     const ok = items.filter(t => tstatus(t) === 'done').length, ng = items.filter(t => tstatus(t) === 'fail').length;
     const cnt = el('span', 'slot-c', items.length ? `${ok}/${items.length}` : '');
+    const pg = items.filter(t => tstatus(t) === 'part').length;
+    if (pg) cnt.append(el('span', 'p', `진행 ${pg}`));
     if (ng) cnt.append(el('span', 'f', `실패 ${ng}`));
     const head = el('div', 'slot-h'); head.append(el('span', null, label), cnt);
     sec.append(head);
@@ -852,6 +870,10 @@ function buildSlot(date, sid, label, compact){
 function renderTodos(){
   const box = $('#todoPanel'); box.replaceChildren();
   for (const [sid, label] of SLOTS) box.append(buildSlot(selected, sid, label, false));
+  const nd = parseYmd(selected); nd.setDate(nd.getDate() + 1);
+  const zone = el('div', 'nextday', `↓ 다음 날로 옮기기 · ${nd.getMonth() + 1}/${nd.getDate()} (${WD[nd.getDay()]}) 06–12`);
+  zone.dataset.date = ymd(nd);
+  box.append(zone); // 끄는 동안에만 새벽 칸 아래에 나타남
 }
 // PPT처럼: 요일 7칸 × 시간대 6칸
 function buildWeekBoard(keys){
@@ -927,18 +949,19 @@ function startDrag(li, x, y){
 }
 function dropTarget(x, y){
   const t = document.elementFromPoint(x, y);
-  return { slot: t && t.closest('.slot'), cell: t && t.closest('#grid .cell'), board: t && t.closest('.weekboard') };
+  return { slot: t && t.closest('.slot'), cell: t && t.closest('#grid .cell'), board: t && t.closest('.weekboard'), next: t && t.closest('.nextday') };
 }
 function clearDropMarks(){
-  document.querySelectorAll('.slot.over,.cell.drop').forEach(n => n.classList.remove('over', 'drop'));
+  document.querySelectorAll('.slot.over,.cell.drop,.nextday.over').forEach(n => n.classList.remove('over', 'drop'));
   if (drag && drag.line) { drag.line.remove(); drag.line = null; }
 }
 function moveDrag(x, y){
   if (!drag) return;
   drag.x = x; drag.y = y;
   drag.ghost.style.transform = `translate(${x - drag.ox}px, ${y - drag.oy}px)`;
-  const { slot, cell, board } = dropTarget(x, y);
-  clearDropMarks(); drag.slot = slot; drag.cell = cell; drag.board = board;
+  const { slot, cell, board, next } = dropTarget(x, y);
+  clearDropMarks(); drag.slot = slot; drag.cell = cell; drag.board = board; drag.next = next;
+  if (next) next.classList.add('over');
   if (slot) {
     slot.classList.add('over');
     const ul = slot.querySelector('.todos');
@@ -985,6 +1008,7 @@ function endDrag(x, y){
     updateTodo(t.id, { date, slot: sid, order });
     return;
   }
+  if (t && d.next) { updateTodo(t.id, { date: d.next.dataset.date, slot: 's09', order: Date.now() }); return; } // 새벽 아래 → 다음 날 06–12
   if (t && d.cell && d.cell.dataset.key !== t.date) { updateTodo(t.id, { date: d.cell.dataset.key, order: Date.now() }); return; } // 시간대 유지
   render();
 }
