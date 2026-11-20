@@ -936,8 +936,8 @@ function buildSlot(date, sid, label, compact){
     inp.value = '';                // 먼저 비우고 추가 → 다시 그린 뒤에도 같은 칸에 포커스 유지
     addTodo(date, sid, raw);
   });
-  if (sid === 'day') { // 시간 없는 일정(종일·여러 날 포함)을 하루 할 일 맨 위에
-    const evs = eventsOn(date).filter(e => e.allDay || !e.start); // 시간 있는 일정은 시간대 칸에 투두로
+  if (sid === 'day') { // 그날의 모든 일정을 하루 할 일 맨 위에 (종일 → 시간순)
+    const evs = eventsOn(date); // 그날의 모든 일정 (시간 있는 일정은 시간대 칸 투두와 별개로 항상 표시)
     if (evs.length) {
       const eul = el('ul', 'evs');
       for (const e of evs) {
